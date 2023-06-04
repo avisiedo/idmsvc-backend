@@ -11,8 +11,8 @@ import (
 	"gorm.io/gorm"
 )
 
-func (a *application) findIpaById(tx *gorm.DB, orgId string, uuid string) (data *model.Domain, err error) {
-	if data, err = a.domain.repository.FindByID(tx, orgId, uuid); err != nil {
+func (c *domainComponent) findIpaById(tx *gorm.DB, orgId string, uuid string) (data *model.Domain, err error) {
+	if data, err = c.repository.FindByID(tx, orgId, uuid); err != nil {
 		return nil, err
 	}
 	if *data.Type != model.DomainTypeIpa {
@@ -31,7 +31,7 @@ func (a *application) findIpaById(tx *gorm.DB, orgId string, uuid string) (data 
 // ipa is the database ipa entity that contains the token information.
 // Return nil if the check is successful, else an error with the detailed
 // causes.
-func (a *application) checkToken(token string, ipa *model.Ipa) error {
+func (c *domainComponent) checkToken(token string, ipa *model.Ipa) error {
 	if token == "" {
 		return fmt.Errorf("'token' cannot be empty")
 	}
@@ -59,7 +59,7 @@ func (a *application) checkToken(token string, ipa *model.Ipa) error {
 // servers is the slice of IpaServer that is defined for the IPA domain.
 // Return nil if the fqdn succesfully match with some item into the list of
 // servers, else return an error.
-func (a *application) existsHostInServers(
+func (c *domainComponent) existsHostInServers(
 	fqdn string,
 	servers []model.IpaServer,
 ) error {
@@ -76,7 +76,7 @@ func (a *application) existsHostInServers(
 	return fmt.Errorf("'fqdn' not found into the list of IPA servers")
 }
 
-func (a *application) isSubscriptionManagerIDAuthorizedToUpdate(
+func (c *domainComponent) isSubscriptionManagerIDAuthorizedToUpdate(
 	subscriptionManagerID string,
 	servers []model.IpaServer,
 ) error {
@@ -101,7 +101,7 @@ func (a *application) isSubscriptionManagerIDAuthorizedToUpdate(
 // target is the destination Ipa structure, it cannot be nil.
 // source is the source Ipa structure, it cannot be nil.
 // Return nil if it is copied succesfully, else an error.
-func (a *application) fillDomain(
+func (c *domainComponent) fillDomain(
 	target *model.Domain,
 	source *model.Domain,
 ) error {
@@ -137,13 +137,13 @@ func (a *application) fillDomain(
 			return fmt.Errorf("'source.IpaDomain' is nil")
 		}
 		target.IpaDomain = &model.Ipa{}
-		return a.fillDomainIpa(target.IpaDomain, source.IpaDomain)
+		return c.fillDomainIpa(target.IpaDomain, source.IpaDomain)
 	default:
 		return fmt.Errorf("'model.DomainTypeIpa' ")
 	}
 }
 
-func (a *application) fillDomainIpa(target *model.Ipa, source *model.Ipa) error {
+func (c *domainComponent) fillDomainIpa(target *model.Ipa, source *model.Ipa) error {
 	if source.RealmName != nil {
 		target.RealmName = pointy.String(*source.RealmName)
 	}
