@@ -237,3 +237,42 @@ func TestListDomains(t *testing.T) {
 	err = handler.ListDomains(ctx, params)
 	require.NoError(t, err)
 }
+
+func TestRegisterDomain(t *testing.T) {
+	sqlMock, db, err := test.NewSqlMock(&gorm.Session{})
+	require.NoError(t, err)
+	require.NotNil(t, sqlMock)
+	require.NotNil(t, db)
+
+	// handler, interactor, repository, presenter, inventory :=
+	// 	helperDomainHandlerMocks(t, db)
+	handler, interactor, repository, presenter, _ :=
+		helperDomainHandlerMocks(t, db)
+
+	// Panic on type assertion for the context
+	err = handler.RegisterDomain(nil, "", public.RegisterDomainParams{})
+	assert.EqualError(t, err, "")
+
+	// Error extracting orgID
+	ctx := 
+	err = handler.RegisterDomain(nil, "", public.RegisterDomainParams{})
+
+	// Error
+	sqlMock, db, err = test.NewSqlMock(&gorm.Session{})
+	require.NoError(t, err)
+	require.NotNil(t, sqlMock)
+	require.NotNil(t, db)
+	handler, interactor, _, _, _ =
+		helperDomainHandlerMocks(t, db)
+	ctx := middleware.NewDomainContextInterface(t)
+	params := public.ListDomainsParams{}
+	testXRHID := identity.XRHID{}
+	ctx.On("XRHID").Return(&testXRHID)
+	interactor.On("List", &testXRHID, &params).
+		Return("", 0, 0, fmt.Errorf("FIXME Some error 1"))
+	err = handler.ListDomains(ctx, params)
+	require.EqualError(t, err, "FIXME Some error 1")
+
+
+
+}
