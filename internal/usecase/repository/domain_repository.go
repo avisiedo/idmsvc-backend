@@ -137,24 +137,71 @@ func (r *domainRepository) UpdateAgent(
 		return err
 	}
 
+	// NOTE After reading the link below:
+	//      https://github.com/go-gorm/gorm/issues/3487
+	//	    and observing the generated SQL statements,
+	//      I have the following hypothesis:
+	//      - If I update a domain which have the same
+	//        number of certificates, the information
+	//        will be updated has expected.
+	//      - If I update a domain which have more
+	//        related entities or equal number, and
+	//        the ID match, the information will be
+	//        updated correctly.
+	//      - If I update a domain which some of the
+	//        new relations is lower (a lower number
+	//        of servers, a lower number of locations,
+	//        or a lower number of certificates), the
+	//        information will be partially updated,
+	//        and the remaining records will not be
+	//        deleted.
+	//      Not verified yet.
+	//
+	// Based into the above is why I comment the next block.
+	// The idea behind them is:
+	// - Receive the old record, and the new record (so update
+	//   the interface, and the implementations).
+	// - Extract the reminder list of ids (helper functions),
+	//   if no reminder the slice will be empty or nil.
+	// - After execute the Updates operation, delete the reminder
+	//   records.
+	//
+	// Thinking about the above it arise a concern; I know GORM
+	// has different ways to update the information, and one
+	// way does not update nil or empty values into the database,
+	// the other way, we build a map with the values to be update
+	// (even if they are nil or empty) and GORM update that values
+	// according to the map[string]interface{} defined. I mention
+	// this because it could be the case that an empty value is
+	// not updated the column into the database.
+	//
+	// var (
+	// 	remCerts     []int
+	// 	remServers   []int
+	// 	remLocations []int
+	// )
+
 	if err = db.
-		Omit(clause.Associations).
+		Session(&gorm.Session{FullSaveAssociations: true}).
+		Where("org_id = ? AND id = ?", orgID, data.ID).
 		Updates(data).
 		Error; err != nil {
 		return err
 	}
 
+	// TODO Remove this block when the above works correctly
 	// Specific
-	switch *data.Type {
-	case model.DomainTypeIpa:
-		if data.IpaDomain == nil {
-			return internal_errors.NilArgError("IpaDomain")
-		}
-		data.IpaDomain.ID = data.ID
-		return r.updateIpaDomain(db, data.IpaDomain)
-	default:
-		return fmt.Errorf("'Type' is invalid")
-	}
+	// switch *data.Type {
+	// case model.DomainTypeIpa:
+	// 	if data.IpaDomain == nil {
+	// 		return internal_errors.NilArgError("IpaDomain")
+	// 	}
+	// 	data.IpaDomain.ID = data.ID
+	// 	return r.updateIpaDomain(db, data.IpaDomain)
+	// default:
+	// 	return fmt.Errorf("'Type' is invalid")
+	// }
+	return nil
 }
 
 // prepareUpdateUser fill the hashmap with the not nil
@@ -376,26 +423,26 @@ func (r *domainRepository) createIpaDomain(
 	return nil
 }
 
-func (r *domainRepository) updateIpaDomain(
-	db *gorm.DB,
-	data *model.Ipa,
-) (err error) {
-	if db == nil {
-		return internal_errors.NilArgError("db")
-	}
-	if data == nil {
-		return internal_errors.NilArgError("data' of type '*model.Ipa")
-	}
-	if err = db.Unscoped().
-		Delete(data).Error; err != nil {
-		return err
-	}
+// func (r *domainRepository) updateIpaDomain(
+// 	db *gorm.DB,
+// 	data *model.Ipa,
+// ) (err error) {
+// 	if db == nil {
+// 		return internal_errors.NilArgError("db")
+// 	}
+// 	if data == nil {
+// 		return internal_errors.NilArgError("data' of type '*model.Ipa")
+// 	}
+// 	if err = db.Unscoped().
+// 		Delete(data).Error; err != nil {
+// 		return err
+// 	}
 
-	if err = db.
-		Create(data).
-		Error; err != nil {
-		return err
-	}
+// 	if err = db.
+// 		Create(data).
+// 		Error; err != nil {
+// 		return err
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
