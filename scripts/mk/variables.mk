@@ -30,7 +30,6 @@ XRHIDGEN := $(TOOLS_BIN)/xrhidgen
 YQ := $(TOOLS_BIN)/yq
 
 TOOLS := \
-	$(GODA) \
 	$(GOJSONSCHEMA) \
 	$(GOLANGCI_LINT) \
 	$(MOCKERY) \
@@ -39,7 +38,7 @@ TOOLS := \
 	$(XRHIDGEN) \
 	$(YQ)
 
-TOOLS_DEPS := go.mod go.sum tools/tools.go | $(TOOLS_BIN)
+TOOLS_DEPS := tools/go.mod tools/go.sum tools/tools.go | $(TOOLS_BIN)
 
 #
 # Kafka configuration variables

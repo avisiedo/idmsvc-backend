@@ -10,8 +10,8 @@ else
 MOD_VENDOR ?= -mod vendor
 endif
 
-.PHONY: install-go-tools
-install-go-tools: $(TOOLS) ## Install Go tools
+# .PHONY: install-go-tools
+# install-go-tools: $(TOOLS) ## Install Go tools
 
 # used by ipa-hcc backend test
 .PHONY: install-xrhidgen
@@ -41,11 +41,20 @@ $(BIN)/%: cmd/%/main.go $(BIN)
 	go build $(MOD_VENDOR) -o "$@" "$<"
 
 # golangci-lint is very picky when it comes to dependencies, install it directly
-$(GOLANGCI_LINT): $(BIN)
-	GOBIN="$(dir $(CURDIR)/$@)" go install "github.com/golangci/golangci-lint/cmd/golangci-lint@v1.55.2"
+# $(GOLANGCI_LINT): $(BIN)
+# 	GOBIN="$(dir $(PROJECT_DIR)/$@)" go install "github.com/golangci/golangci-lint/cmd/golangci-lint@v1.55.2"
 
-$(TOOLS_BIN)/%: $(TOOLS_DEPS)
-	go build -modfile "$<" -o "$@" $(shell grep $(notdir $@) tools/tools.go | awk '{print $$2}')
+# $(TOOLS_BIN)/%: $(TOOLS_DEPS)
+# 	cd tools && go install -modfile "$<" -o "$@" $(shell grep $(notdir $@) tools/tools.go | awk '{print $$2}')
+
+$(TOOLS_BIN) $(GOLANGCI_LINT): install-go-tools
+.PHONY: install-go-tools
+install-go-tools: ## Install Go tools
+	@for item in $(shell grep _ "$(PROJECT_DIR)/tools/tools.go" | cut -d_ -f2); do \
+		echo ">> Installing $$item"; \
+		env GOBIN="$(PROJECT_DIR)/tools/bin" \
+		go install -modfile="$(PROJECT_DIR)/tools/go.mod" "$$item"; \
+	done
 
 .PHONY: clean
 clean: ## Clean binaries and testbin generated
@@ -63,6 +72,7 @@ run: $(BIN)/service .compose-wait-db ## Run the api & kafka consumer locally
 .PHONY: tidy
 tidy:  ## Synchronize your code's dependencies
 	go mod tidy
+	cd tools && go mod tidy
 
 .PHONY: get-deps
 get-deps: ## Download golang dependencies
@@ -191,9 +201,9 @@ generate-mock: $(MOCKERY)  ## Generate mock by using mockery tool
 		--case underscore; \
 	done
 
-.PHONY: generate-deps
-generate-deps: $(GODA)
-	$(GODA) graph "github.com/podengo-project/idmsvc-backend/..." | dot -Tsvg -o docs/service-dependencies.svg
+# .PHONY: generate-deps
+# generate-deps: $(GODA)
+# 	$(GODA) graph "github.com/podengo-project/idmsvc-backend/..." | dot -Tsvg -o docs/service-dependencies.svg
 
 .PHONY: coverage
 coverage:  ## Printout coverage
