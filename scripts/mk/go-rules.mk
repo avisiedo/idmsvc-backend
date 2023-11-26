@@ -50,7 +50,7 @@ $(BIN)/%: cmd/%/main.go $(BIN)
 $(TOOLS_BIN) $(GOLANGCI_LINT): install-go-tools
 .PHONY: install-go-tools
 install-go-tools: ## Install Go tools
-	@for item in $(shell grep _ "$(PROJECT_DIR)/tools/tools.go" | cut -d_ -f2); do \
+	@for item in $(shell grep -v '^\s*//' "$(PROJECT_DIR)/tools/tools.go" | grep _ | cut -d_ -f2); do \
 		echo ">> Installing $$item"; \
 		env GOBIN="$(PROJECT_DIR)/tools/bin" \
 		go install -modfile="$(PROJECT_DIR)/tools/go.mod" "$$item"; \
