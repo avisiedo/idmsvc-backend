@@ -11,6 +11,7 @@ require (
 	github.com/achiku/planter v0.0.0-20230118102009-4847a8211e35
 	github.com/atombender/go-jsonschema v0.13.1
 	github.com/deepmap/oapi-codegen v1.14.0
+	github.com/loov/goda v0.5.7
 	github.com/mikefarah/yq/v4 v4.34.2
 	github.com/subpop/xrhidgen v0.0.0-20221013174335-ca910188f4c9
 	github.com/vektra/mockery/v2 v2.36.0
@@ -35,6 +36,7 @@ require (
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/goccy/go-yaml v1.11.2 // indirect
+	github.com/google/subcommands v1.2.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/huandu/xstrings v1.4.0 // indirect
 	github.com/iancoleman/strcase v0.2.0 // indirect
@@ -79,6 +81,7 @@ require (
 	golang.org/x/term v0.14.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/tools v0.15.0 // indirect
+	golang.org/x/tools/go/vcs v0.1.0-deprecated // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/op/go-logging.v1 v1.0.0-20160211212156-b2cb9fa56473 // indirect
