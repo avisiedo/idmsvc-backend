@@ -8,7 +8,6 @@ go 1.20
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/achiku/planter v0.0.0-20230118102009-4847a8211e35
-	github.com/atombender/go-jsonschema v0.13.1
 	github.com/confluentinc/confluent-kafka-go v1.9.2
 	github.com/deepmap/oapi-codegen v1.14.0
 	github.com/getkin/kin-openapi v0.120.0
@@ -92,7 +91,6 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/matttproud/golang_protobuf_extensions/v2 v2.0.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
-	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/nxadm/tail v1.4.8 // indirect
@@ -110,7 +108,6 @@ require (
 	github.com/redhatinsights/module-update-router v0.0.0-20220708181923-3d8d459361dd // indirect
 	github.com/sagikazarmark/locafero v0.3.0 // indirect
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
-	github.com/sanity-io/litter v1.5.5 // indirect
 	github.com/segmentio/asm v1.2.0 // indirect
 	github.com/sgreben/flagvar v1.10.1 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
