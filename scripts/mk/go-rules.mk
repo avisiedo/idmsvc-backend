@@ -10,6 +10,11 @@ else
 MOD_VENDOR ?= -mod vendor
 endif
 
+GOOPTS ?=
+ifeq (1,$(OPENSSL_FORCE_FIPS_MODE))
+GOOPTS += -tags fips
+endif
+
 .PHONY: install-go-tools
 install-go-tools: $(TOOLS) ## Install Go tools
 
