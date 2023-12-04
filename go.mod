@@ -16,7 +16,7 @@ require (
 	github.com/google/uuid v1.4.0
 	github.com/labstack/echo/v4 v4.11.3
 	github.com/labstack/gommon v0.4.1
-	github.com/lestrrat-go/jwx/v2 v2.0.17
+	github.com/lestrrat-go/jwx/v2 v2.0.18
 	github.com/lib/pq v1.10.9
 	github.com/oapi-codegen/runtime v1.1.0
 	github.com/openlyinc/pointy v1.2.1
@@ -27,7 +27,7 @@ require (
 	github.com/rs/zerolog v1.31.0
 	github.com/spf13/viper v1.17.0
 	github.com/stretchr/testify v1.8.4
-	golang.org/x/crypto v0.15.0
+	golang.org/x/crypto v0.16.0
 	gorm.io/driver/postgres v1.5.4
 	gorm.io/gorm v1.25.5
 	k8s.io/utils v0.0.0-20230726121419-3b25d923346b
@@ -98,7 +98,7 @@ require (
 	golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa // indirect
 	golang.org/x/net v0.18.0 // indirect
 	golang.org/x/sync v0.5.0 // indirect
-	golang.org/x/sys v0.14.0 // indirect
+	golang.org/x/sys v0.15.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/time v0.4.0 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
