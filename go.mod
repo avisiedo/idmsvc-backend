@@ -8,7 +8,7 @@ module github.com/podengo-project/idmsvc-backend
 go 1.20
 
 require (
-	github.com/DATA-DOG/go-sqlmock v1.5.0
+	github.com/DATA-DOG/go-sqlmock v1.5.1
 	github.com/confluentinc/confluent-kafka-go v1.9.2
 	github.com/getkin/kin-openapi v0.120.0
 	github.com/go-playground/validator/v10 v10.16.0
