@@ -37,7 +37,7 @@ objects:
               enabled: true
               # TODO Define the service name
               # For /api/idmsvc/v*/* endpoints
-              apiPath: ${APP_NAME}
+              apiPath: /api/${APP_NAME}
           podSpec:
             initContainers:
               - name: db-migrate-up
