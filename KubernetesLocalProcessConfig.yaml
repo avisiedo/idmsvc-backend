@@ -1,0 +1,7 @@
+version: 0.1
+env:
+  - name: CLOWDER_CONFIG
+    value: $(volumeMounts:config-secret)/cdappconfig.json
+volumeMounts:
+  - name: config-secret
+    localPath: ./cdapp
