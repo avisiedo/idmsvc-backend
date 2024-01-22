@@ -211,10 +211,11 @@ ephemeral-namespace-hccconf: ## Generate hcc.conf for current namespace
 .PHONY: ephemeral-test-backend
 ephemeral-test-backend: $(BONFIRE) ## Run IQE tests in the ephemeral environment (require to run ephemeral-deploy before)
 	$(BONFIRE) deploy-iqe-cji \
-	  --env clowder_smoke \
-	  --cji-name "$(APP_NAME)-$(APP_COMPONENT)" \
-	  --namespace "$(NAMESPACE)" \
-	  "$(APP_NAME)"
+		--env clowder_smoke \
+		--image-tag idm \
+		--namespace "$(NAMESPACE)" \
+		--env-var IQE_PLUGINS=idm \
+	    "$(APP_NAME)-$(APP_COMPONENT)"
 
 # https://kubernetes.io/docs/tasks/administer-cluster/dns-debugging-resolution/
 .PHONY: ephemeral-run-dnsutil
