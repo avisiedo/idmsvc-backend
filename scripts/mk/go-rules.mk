@@ -88,7 +88,7 @@ vendor: ## Generate vendor/ directory populated with the dependencies
 # generated.
 # Exclude /vendor in case it exists
 # Exclude /internal/interface directories because only contain interfaces
-TEST_GREP_FILTER := -v \
+TEST_UNIT_GREP_FILTER := -v \
   -e /vendor/ \
   -e /internal/test \
   -e /internal/interface/ \
@@ -99,17 +99,17 @@ TEST_GREP_FILTER := -v \
 .PHONY: test
 test: test-unit test-smoke  ## Run unit tests, smoke tests and integration tests
 
+.PHONY: test-ci
+test-ci: test ## Run tests for ci
+
 .PHONY: test-unit
 test-unit: ## Run unit tests
-	go test -parallel 4 -coverprofile="coverage.out" -covermode count $(MOD_VENDOR) $(shell go list ./... | grep $(TEST_GREP_FILTER) )
-
-.PHONY: test-ci
-test-ci: ## Run tests for ci
-	go test $(MOD_VENDOR) ./...
+	go test -tags test_unit -parallel 4 -coverprofile="coverage.out" -covermode count $(MOD_VENDOR) $(shell go list ./... )
 
 .PHONY: test-smoke
 test-smoke:  ## Run smoke tests
-	CONFIG_PATH="$(PROJECT_DIR)/configs" go test -parallel 1 ./internal/test/smoke/... -test.failfast -test.v
+	CONFIG_PATH="$(PROJECT_DIR)/configs" \
+	go test -tags test_smoke -parallel 1 -coverprofile="coverage.out" -covermode count -test.failfast -test.v $(MOD_VENDOR) $(shell go list ./...)
 
 # Add dependencies from binaries to all the the sources
 # so any change is detected for the build rule
