@@ -1,3 +1,6 @@
+//go:build test_unit
+// +build test_unit
+
 package domain_token
 
 import (

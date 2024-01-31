@@ -1,3 +1,6 @@
+//go:build test_unit
+// +build test_unit
+
 package metrics
 
 import (
