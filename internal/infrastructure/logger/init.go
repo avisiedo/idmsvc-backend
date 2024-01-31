@@ -83,7 +83,11 @@ func InitLogger(cfg *config.Config) {
 			&opts,
 		)
 	}
-	slog.SetDefault(slog.New(h))
+	metaHandler := NewMetaHandler()
+	metaHandler.Add(h)
+	// FIXME Add here the second handler for clowdwatch
+	metaHandler.Add(h)
+	slog.SetDefault(slog.New(metaHandler))
 
 	// set global log level
 	lvl := strings.ToUpper(cfg.Logging.Level)
