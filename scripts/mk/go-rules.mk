@@ -108,8 +108,12 @@ test-unit: ## Run unit tests
 
 .PHONY: test-smoke
 test-smoke:  ## Run smoke tests
+	[ -e "$(PROJECT_DIR)/coverdata" ] || mkdir -p "$(PROJECT_DIR)/coverdata"
+	#GOCOVERDIR="$(PROJECT_DIR)/coverdata" $(MAKE) clean build
 	CONFIG_PATH="$(PROJECT_DIR)/configs" \
-	go test -tags test_smoke -parallel 1 -coverprofile="coverage.out" -covermode count -test.failfast -test.v $(MOD_VENDOR) $(shell go list ./...)
+	GOCOVERDIR="$(PROJECT_DIR)/coverdata" \
+	go test -tags test_smoke -parallel 1 -test.failfast -test.v -cover $(MOD_VENDOR) $(shell go list ./...)
+	go tool covdata percent -i=$(PROJECT_DIR)/coverdata
 
 # Add dependencies from binaries to all the the sources
 # so any change is detected for the build rule
