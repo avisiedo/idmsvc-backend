@@ -8,7 +8,7 @@
 - docker or podman (>4.0.0)
 - docker-compose or podman-compose
 - python3
-- openshift client [Installing OpenShift Client](https://docs.openshift.com/container-platform/4.12/cli_reference/openshift_cli/getting-started-cli.html#installing-openshift-cli).
+- openshift client [Installing OpenShift Client][install_oc].
 
 Packages for fedora 37:
 
@@ -18,27 +18,12 @@ $ sudo dnf install git golang podman podman-compose
 $ sudo dnf remove gcc-go
 ```
 
-(Optional) Installing VSCode by repository on fedora 37:
-
-```sh
-$ sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc
-$ cat <<EOF | sudo tee /etc/yum.repos.d/vscode.repo
-[code]
-name=Visual Studio Code
-baseurl=https://packages.microsoft.com/yumrepos/vscode
-enabled=1
-gpgcheck=1
-gpgkey=https://packages.microsoft.com/keys/microsoft.asc
-EOF
-$ sudo dnf check-update
-$ sudo dnf install code
-```
+(Optional) [Installing VSCode][install_vscode] by repository on fedora 37.
 
 (Optional) Recomended extensions for vscode:
 
 - Go (highly recommended)
 - REST Client
-- 42Crunch OpenAPI
 
 Once tasks:
 
@@ -185,6 +170,7 @@ Http clients
 - https://github.com/AnWeber/httpyac
 
 Validate API
-- https://github.com/42Crunch/vscode-openapi
 - https://quobix.com/vacuum/ (actually integrated in `make lint`)
 
+[install_oc]: https://docs.openshift.com/container-platform/4.15/cli_reference/openshift_cli/getting-started-cli.html#installing-openshift-cli
+[install_vscode]: https://code.visualstudio.com/docs/setup/linux
