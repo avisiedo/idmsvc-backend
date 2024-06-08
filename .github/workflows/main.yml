@@ -32,6 +32,7 @@ jobs:
       - uses: "actions/checkout@v4"
         with:
           submodules: recursive
+          fetch-depth: 10
 
       - name: "Set git safe directory"
         run: git config --system --add safe.directory $GITHUB_WORKSPACE
@@ -89,3 +90,16 @@ jobs:
 
       - name: Build executables
         run: make build
+
+      - uses: gwatts/go-coverage-action@v2
+        id: coverage
+        # https://github.com/marketplace/actions/go-coverage
+        with:
+          # collect coverage for all packages beyond the one under test
+          cover-pkg: ./...
+
+          # Ignore code-generated files when calculating coverage totals
+          ignore-pattern: |
+            internal/test
+            internal/api
+            \*\*/\*\.gen\.go$
