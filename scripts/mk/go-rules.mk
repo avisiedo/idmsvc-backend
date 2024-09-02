@@ -20,6 +20,11 @@ install-xrhidgen: $(XRHIDGEN) ## Install xrhidgen tool
 .PHONY: install-tools
 install-tools: install-go-tools install-python-tools ## Install tools used to build, test and lint
 
+.PHONY: which-tools
+which-tools:  ## Display the tool used
+	#### Checking by using tools path (should not fail)
+	@for item in $(TOOLS); do PATH="$(TOOLS_BIN):$${PATH}" which $$(basename $${item}); done; true
+
 .PHONY: build-all
 build-all: ## Generate code and build binaries
 	$(MAKE) generate-api
@@ -116,6 +121,9 @@ test-smoke:  ## Run smoke tests
 	CLIENTS_RBAC_BASE_URL="http://localhost:8021/api/rbac/v1" \
 	go test -parallel 1 ./internal/test/smoke/... -test.failfast -test.v
 
+	CLIENTS_RBAC_BASE_URL="http://localhost:8021/api/rbac/v1" \
+	go test -parallel 1 ./internal/test/smoke/... -test.failfast -test.v
+
 # Add dependencies from binaries to all the the sources
 # so any change is detected for the build rule
 $(patsubst cmd/%,$(BIN)/%,$(wildcard cmd/*)): $(shell find $(PROJECT_DIR)/cmd -type f -name '*.go') $(shell find $(PROJECT_DIR)/pkg -type f -name '*.go' 2>/dev/null) $(shell find $(PROJECT_DIR)/internal -type f -name '*.go' 2>/dev/null)
@@ -194,9 +202,6 @@ $(EVENT_SCHEMA_DIR)/%.event.json: $(EVENT_MESSAGE_DIR)/%.event.yaml
 	yaml2json "$<" "$@"
 
 # Mockery support
-MOCK_DIRS := internal/api/private \
-	internal/api/public \
-	internal/api/openapi \
 	internal/interface/repository \
 	internal/interface/interactor \
 	internal/interface/presenter \
