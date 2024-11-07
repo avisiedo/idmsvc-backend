@@ -15,7 +15,14 @@ import (
 	"github.com/podengo-project/idmsvc-backend/internal/config"
 )
 
-const dbMirationScriptPath = "./scripts/db/migrations"
+type Direction string
+
+const (
+	dbMirationScriptPath = "./scripts/db/migrations"
+
+	DirectionUp   = "up"
+	DirectionDown = "down"
+)
 
 // From hmscontent
 func CreateMigrationFile(migrationName string) error {
@@ -72,7 +79,7 @@ COMMIT;
 	return nil
 }
 
-func MigrateDb(config *config.Config, direction string, steps int) error {
+func MigrateDb(config *config.Config, direction Direction, steps int) error {
 	if config == nil {
 		slog.Error("'config' cannot be nil")
 		return fmt.Errorf("'config' cannot be nil")
@@ -84,25 +91,25 @@ func MigrateDb(config *config.Config, direction string, steps int) error {
 	}
 
 	// show current database version
-	version, dirty, verr := m.Version()
-	if verr == nil {
+	version, dirty, err := m.Version()
+	if err == nil {
 		slog.Info(
 			"Current database migration status",
 			slog.Uint64("version", uint64(version)),
 			slog.Bool("dirty", dirty),
 		)
-	} else if verr == migrate.ErrNilVersion {
+	} else if err == migrate.ErrNilVersion {
 		slog.Info("No database version")
 	}
 
 	switch direction {
-	case "up":
+	case DirectionUp:
 		if steps > 0 {
 			err = m.Steps(steps)
 		} else {
 			err = m.Up()
 		}
-	case "down":
+	case DirectionDown:
 		if steps > 0 {
 			steps *= -1
 			err = m.Steps(steps)
@@ -141,8 +148,8 @@ func MigrateDb(config *config.Config, direction string, steps int) error {
 		}
 	}
 
-	version, dirty, verr = m.Version()
-	if verr == nil {
+	version, dirty, err = m.Version()
+	if err == nil {
 		slog.Info(
 			"New database migration status",
 			slog.Uint64("version", uint64(version)),
@@ -187,10 +194,10 @@ func getPreviousMigrationVersion(m *migrate.Migrate) (int, error) {
 
 func MigrateUp(config *config.Config, steps int) error {
 	slog.Info("executing MigrateUp", slog.Int("steps", steps))
-	return MigrateDb(config, "up", steps)
+	return MigrateDb(config, DirectionUp, steps)
 }
 
 func MigrateDown(config *config.Config, steps int) error {
 	slog.Info("executing MigrateDown", slog.Int("steps", steps))
-	return MigrateDb(config, "down", steps)
+	return MigrateDb(config, DirectionDown, steps)
 }
