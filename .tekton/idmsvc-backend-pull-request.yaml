@@ -485,11 +485,11 @@ spec:
         - name: kind
           value: task
         resolver: bundles
-      workspaces:
-      - name: git-auth
-        optional: true
-      - name: netrc
-        workspace: netrc
+      # workspaces:
+      # - name: git-auth
+      #   optional: true
+      # - name: netrc
+      #   optional: true
     - name: rpms-signature-scan
       params:
       - name: image-url
