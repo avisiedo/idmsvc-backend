@@ -2,7 +2,6 @@
 """Generate app-secret for ephemeral environment
 """
 import argparse
-import os
 import secrets
 
 TEMPLATE = """\
@@ -19,6 +18,8 @@ parser.add_argument("file", type=argparse.FileType("w"))
 
 
 def main():
+    """Main block
+    """
     args = parser.parse_args()
     print(f"Writing app-secret to {args.file.name}")
     content = TEMPLATE.format(secret=secrets.token_urlsafe())

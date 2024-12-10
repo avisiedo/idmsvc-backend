@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+import json
+import os
+
 import argparse
 import base64
 import random
@@ -7,8 +10,6 @@ import subprocess
 import sys
 import uuid
 import requests
-import json
-import os
 
 
 CONTENT_TYPE = "application/json"
@@ -138,7 +139,7 @@ def create_token_data(domain_type: string):
 def create_token(org_id: string, domain_type: string):
     """Return a token to be used for creating a domain"""
     response = requests.post(
-        base_url + "/domains/token",
+        BASE_URL + "/domains/token",
         headers=({
             HEADER_X_RH_INSIGHTS_REQUEST_ID: generate_request_id(),
             HEADER_X_RH_IDENTITY: b64_identity_user,
@@ -153,9 +154,9 @@ def generate_request_id():
     return ''.join(random.choices(string.ascii_lowercase + string.digits, k=32))
 
 if __name__ == "__main__":
-    app_name = "idmsvc"
-    service_version = "1"
-    base_url = "http://localhost:8000/api/" + app_name + "/v" + service_version
+    APP_NAME = "idmsvc"
+    SERVICE_VERSION = "1"
+    BASE_URL = "http://localhost:8000/api/" + APP_NAME + "/v" + SERVICE_VERSION
 
     parser = argparse.ArgumentParser()
     parser.add_argument("-oid", "--org-id", dest="org_id" , help = f"Organization ID (default={DEFAULT_ORG_ID})")
@@ -213,7 +214,7 @@ if __name__ == "__main__":
             "os-release-version-id":"9.1"
         })
         response = requests.post(
-            base_url + "/domains",
+            BASE_URL + "/domains",
             headers=({
                 HEADER_X_RH_INSIGHTS_REQUEST_ID: generate_request_id(),
                 HEADER_X_RH_IDENTITY: b64_identity_system,
