@@ -8,9 +8,10 @@ LABEL idmsvc-backend=builder
 # https://developers.redhat.com/articles/2022/05/31/your-go-application-fips-compliant
 ENV OPENSSL_FORCE_FIPS_MODE=1
 WORKDIR /go/src/app
-COPY . .
-USER 0
+COPY go.mod go.sum .
 RUN make get-deps
+USER 0
+COPY . .
 RUN make build
 RUN mkdir /licenses \
     && cp -vf LICENSE /licenses/LICENSE
@@ -23,7 +24,11 @@ LABEL idmsvc-backend=backend
 ENV OPENSSL_FORCE_FIPS_MODE=1
 RUN mkdir -p /opt/bin /opt/bin/scripts/db /opt/bin/configs
 WORKDIR /opt/bin
-RUN microdnf update -y && microdnf clean all
+# Comment because I want replayable images, so instead of update packages to
+# the current last version, I will change the base image when an update is
+# available. If some package is not updated and required, it is better to
+# inquire to rebuild the base image with the latest packages.
+# RUN microdnf update -y && microdnf clean all
 COPY --from=builder /go/src/app/bin/* ./
 COPY --from=builder /licenses /licenses
 COPY scripts/db/migrations /opt/bin/scripts/db/migrations
