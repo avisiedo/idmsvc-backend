@@ -10,7 +10,8 @@ ENV OPENSSL_FORCE_FIPS_MODE=1
 WORKDIR /go/src/app
 COPY . .
 USER 0
-RUN make get-deps build
+RUN make get-deps
+RUN make build
 RUN mkdir /licenses \
     && cp -vf LICENSE /licenses/LICENSE
 
