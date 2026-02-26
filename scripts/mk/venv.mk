@@ -7,10 +7,10 @@ JSON2YAML := $(PYTHON_VENV)/bin/json2yaml
 
 $(PYTHON_VENV):
 	python3 -m venv $(PYTHON_VENV)
-	$(PYTHON_VENV)/bin/pip install -U pip setuptools
+	python3 -m pip install -U pip setuptools
 
 $(BONFIRE) $(PRE_COMMIT) $(JSON2YAML): $(PYTHON_VENV)
-	$(PYTHON_VENV)/bin/pip3 install -r requirements-dev.txt
+	python3 -m pip install -r requirements-dev.txt
 	touch $(BONFIRE) $(PRE_COMMIT)
 
 .PHONY: install-python-tools
