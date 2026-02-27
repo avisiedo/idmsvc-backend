@@ -4,12 +4,15 @@
 #
 # Variables:
 #   GRAFANA_VERSION
+#   GRAFANA_UI_PORT
 #
 # See the container tags into the link below:
 #   https://hub.docker.com/r/grafana/grafana/tags
 #
 # See also the grafana documentation at:
 #   https://grafana.com/docs/grafana/latest/
+#
+# Requirements: scripts/mk/open.mk
 ##
 
 GRAFANA_VERSION ?= latest
@@ -18,16 +21,6 @@ GRAFANA_UI_PORT ?= 3000
 export GRAFANA_UI_PORT
 
 export GRAFANA_VERSION
-
-ifneq (,$(shell command -v open 2>/dev/null))
-OPEN ?= open
-endif
-ifneq (,$(shell command -v xdg-open 2>/dev/null))
-OPEN ?= xdg-open
-endif
-ifeq (,$(OPEN))
-OPEN ?= false
-endif
 
 .PHONY: grafana-up
 grafana-up: ## Start grafana service (local access at http://localhost:9090)

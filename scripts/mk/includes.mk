@@ -21,6 +21,7 @@
 include scripts/mk/projectdir.mk
 -include secrets/private.mk
 include scripts/mk/variables.mk
+include scripts/mk/open.mk
 # tools
 include scripts/mk/meta-prometheus.mk
 include scripts/mk/prometheus.mk

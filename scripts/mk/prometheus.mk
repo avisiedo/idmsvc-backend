@@ -4,32 +4,24 @@
 #
 # Variables:
 #   PROMETHEUS_VERSION
-#   PROMETHEYS_CONFIG
+#   PROMETHEUS_CONFIG
+#   PROMETHEUS_UI_PORT
 #
 # See the container tags into the link below:
 #   https://hub.docker.com/r/prom/prometheus/tags
 #
 # See also the prometheus documentation at:
 #   https://prometheus.io/docs/introduction/overview/
+#
+# Requirements: scripts/mk/open.mk
 ##
 
 PROMETHEUS_VERSION ?= v2.54.0
 PROMETHEUS_CONFIG ?= $(PROJECT_DIR)/configs/prometheus.yaml
-PROMETHEUS_CONFIG_EXAMPLE ?= $(PROJECT_DIR)/configs/prometheus.example.yaml
 PROMETHEUS_UI_PORT ?= 9090
 export PROMETHEUS_UI_PORT
 export PROMETHEUS_CONFIG
 export PROMETHEUS_VERSION
-
-ifneq (,$(shell command -v open 2>/dev/null))
-OPEN ?= open
-endif
-ifneq (,$(shell command -v xdg-open 2>/dev/null))
-OPEN ?= xdg-open
-endif
-ifeq (,$(OPEN))
-OPEN ?= false
-endif
 
 .PHONY: prometheus-up
 prometheus-up: ## Start prometheus service (local access at http://localhost:9090)
