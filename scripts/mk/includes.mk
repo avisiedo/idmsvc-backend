@@ -22,31 +22,43 @@ include scripts/mk/projectdir.mk
 -include secrets/private.mk
 include scripts/mk/variables.mk
 include scripts/mk/open.mk
-# tools
+include scripts/mk/venv.mk
+
+# prometheus
 include scripts/mk/meta-prometheus.mk
 include scripts/mk/prometheus.mk
+
+# grafana
 include scripts/mk/meta-grafana.mk
 include scripts/mk/grafana.mk
-include scripts/mk/plantuml.mk
-include scripts/mk/venv.mk
+
 # mocks
 include scripts/mk/meta-mock.mk
 include scripts/mk/mock-rbac.mk
-# commands
+
+# general
 include scripts/mk/meta-general.mk
 include scripts/mk/help.mk
 include scripts/mk/gojsonschema.mk
 include scripts/mk/go-rules.mk
+include scripts/mk/plantuml.mk
 include scripts/mk/api-doc.mk
 include scripts/mk/db.mk
 include scripts/mk/printvars.mk
 include scripts/mk/lint.mk
+
+# containers
 include scripts/mk/meta-container.mk
 include scripts/mk/container.mk
+
+# compose
 include scripts/mk/meta-compose.mk
 include scripts/mk/compose.mk
+
+# kafka
 include scripts/mk/meta-kafka.mk
 include scripts/mk/kafka.mk
+
 include scripts/mk/meta-ephemeral.mk
 include scripts/mk/ephemeral.mk
 
