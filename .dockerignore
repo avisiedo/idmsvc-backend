@@ -23,7 +23,7 @@
 #!/build
 #!/build/**/*
 
-# Graphana dashboard
+# Grafana dashboard
 !/dashboards
 !/dashboards/**/*
 
