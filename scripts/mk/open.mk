@@ -5,10 +5,10 @@
 #   OPEN
 ##
 
-ifneq (,$(shell which open 2>/dev/null))
+ifneq (,$(shell command -v open 2>/dev/null))
 OPEN ?= open
 endif
-ifneq (,$(shell which xdg-open 2>/dev/null))
+ifneq (,$(shell command -v xdg-open 2>/dev/null))
 OPEN ?= xdg-open
 endif
 ifeq (,$(OPEN))
