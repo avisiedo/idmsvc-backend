@@ -6,9 +6,9 @@ import (
 
 	"log/slog"
 
-	"github.com/confluentinc/confluent-kafka-go/kafka"
-	"github.com/openlyinc/pointy"
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/podengo-project/idmsvc-backend/internal/config"
+	"go.openly.dev/pointy"
 )
 
 // See: https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md

@@ -20,19 +20,11 @@ services:
       - ../test/mockserver:/config:ro,z
 
   database:
-    image: quay.io/cloudservices/postgresql-rds:15
+    image: docker.io/postgres:15
     environment:
-      - POSTGRESQL_DATABASE=${DATABASE_NAME:-idmsvc-db}
-      - POSTGRESQL_USER=${DATABASE_USER:-idmsvc-user}
-      - POSTGRESQL_PASSWORD=${DATABASE_PASSWORD:-idmsvc-secret}
-
-    # On Darwin you could want this block because at the moment
-    # of writting this, it is a multi-arch container image
-    # image: docker.io/postgres:15.6
-    # environment:
-    #   - POSTGRES_USER=${DATABASE_USER:-idmsvc-user}
-    #   - POSTGRES_PASSWORD=${DATABASE_PASSWORD:-idmsvc-secret}
-    #   - POSTGRES_DB=${DATABASE_NAME:-idmsvc-db}
+      - POSTGRES_DB=${DATABASE_NAME:-idmsvc-db}
+      - POSTGRES_USER=${DATABASE_USER:-idmsvc-user}
+      - POSTGRES_PASSWORD=${DATABASE_PASSWORD:-idmsvc-secret}
 
     ports:
       - ${DATABASE_EXTERNAL_PORT:-5432}:5432/tcp
@@ -124,6 +116,16 @@ services:
   #       retries: 10
   #       timeout: 3s
   #       start_period: 5s
+
+  # prometheus:
+  #   image: docker.io/prom/prometheus:v3-distroless
+  #   environment: {}
+  #   ports: {}
+  #   volumes: {}
+
+  # graphana:
+  #   image: docker.io/grafana/grafana:main-ubuntu
+  #   environment: {}
 
   # 'make test' will fail with mock-rbac running
   mock-rbac:

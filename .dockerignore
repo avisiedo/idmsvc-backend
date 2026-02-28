@@ -1,22 +1,38 @@
 # By default ignore
 **/*
 
-# Add only what we need to build
+# Root files
 !LICENSE
 !Makefile
 !go.mod
 !go.sum
-!/internal/**
-!/cmd/**
+
+# private packages
+!/internal
+!/internal/**/*
+
+# main binaries
+!/cmd
+!/cmd/**/*
+
+# API rest specifications
+!/api
 !/api/**
-!/build/**
-!/dashboards/**
-!/deployments/**
+
+# Grafana dashboard
+!/dashboards
+!/dashboards/**/*
+
+# Scripts
+!/scripts
 !/scripts/**/*
-!/tools/*
-!/tools/mk/*
-!/configs/config.example.yaml
-!/configs/config.ci.yaml
-!/configs/bonfire.example.yaml
-!/configs/cdappconfig.json
-/tools/bin/*
+
+# Configs
+!/configs
+!/configs/**/*
+
+# tools/bin
+!/tools
+!/tools/**/*
+/tools/bin
+

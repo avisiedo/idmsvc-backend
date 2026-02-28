@@ -1,25 +1,46 @@
-.DS_Store
-.cicd_bootstrap.sh
-/secrets
-/idm-ci-secrets
-.venv
-/bin
+# By default ignore
+**/*
+
+# Root files
+!LICENSE
+!Makefile
+!go.mod
+!go.sum
+
+# private packages
+!/internal
+!/internal/**/*
+
+# main binaries
+!/cmd
+!/cmd/**/*
+
+# API rest specifications
+!/api
+!/api/**
+
+# Conainer build definitions
+!/build
+!/build/**/*
+
+# Grafana dashboard
+!/dashboards
+!/dashboards/**/*
+
+# Deployment resources
+!/deployments
+!/deployments/**/*
+
+# Scripts
+!/scripts
+!/scripts/**/*
+
+# Tools
+!/tools
+!/tools/**/*
 /tools/bin
-tmp.*/**
-**/__debug_bin
 
-*.log
-
-/configs/**
-!/configs/config.example.yaml
-!/configs/config.ci.yaml
-!/configs/bonfire.example.yaml
-!/configs/cdappconfig.json
-
-!/configs/idmsvc_client_gen_config.yaml
-!/configs/rbac_client_api.json
-!/configs/rbac_client_gen_config.yaml
-
-# File generated when running unit tests
-coverage.out
+# Configs
+!/configs
+!/configs/**/*
 

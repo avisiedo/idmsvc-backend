@@ -16,7 +16,7 @@ COMPOSE_FILE ?= $(PROJECT_DIR)/deployments/docker-compose.yaml
 
 CONTAINER_IMAGE_BASE ?= quay.io/$(firstword $(subst +, ,$(QUAY_USER)))/$(APP_NAME)-$(APP_COMPONENT)
 
-GO_VERSION ?= 1.22.1
+GO_VERSION ?= 1.24.4
 
 # Tools and their dependencies
 # Build dependencies
@@ -24,7 +24,7 @@ TOOLS_BIN := tools/bin
 
 COBRA_CLI := $(TOOLS_BIN)/cobra-cli
 GODA := $(TOOLS_BIN)/goda
-GOJSONSCHEMA := $(TOOLS_BIN)/gojsonschema
+GOJSONSCHEMA := $(TOOLS_BIN)/go-jsonschema
 GOLANGCI_LINT := $(TOOLS_BIN)/golangci-lint
 MOCKERY := $(TOOLS_BIN)/mockery
 OAPI_CODEGEN := $(TOOLS_BIN)/oapi-codegen
