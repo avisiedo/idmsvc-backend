@@ -2,41 +2,47 @@
 
 package event
 
-import "fmt"
 import "encoding/json"
+import "fmt"
 
 // Message schema for todo creation event
 type TodoCreatedEventJson struct {
 	// The Todo description
-	Description string `json:"description" yaml:"description"`
+	Description string `json:"description" yaml:"description" mapstructure:"description"`
 
 	// The id of the Todo resource.
 	//
-	Id float64 `json:"id" yaml:"id"`
+	Id float64 `json:"id" yaml:"id" mapstructure:"id"`
 
 	// The Todo title
-	Title string `json:"title" yaml:"title"`
+	Title string `json:"title" yaml:"title" mapstructure:"title"`
 }
 
 // UnmarshalJSON implements json.Unmarshaler.
-func (j *TodoCreatedEventJson) UnmarshalJSON(b []byte) error {
+func (j *TodoCreatedEventJson) UnmarshalJSON(value []byte) error {
 	var raw map[string]interface{}
-	if err := json.Unmarshal(b, &raw); err != nil {
+	if err := json.Unmarshal(value, &raw); err != nil {
 		return err
 	}
-	if v, ok := raw["description"]; !ok || v == nil {
+	if _, ok := raw["description"]; raw != nil && !ok {
 		return fmt.Errorf("field description in TodoCreatedEventJson: required")
 	}
-	if v, ok := raw["id"]; !ok || v == nil {
+	if _, ok := raw["id"]; raw != nil && !ok {
 		return fmt.Errorf("field id in TodoCreatedEventJson: required")
 	}
-	if v, ok := raw["title"]; !ok || v == nil {
+	if _, ok := raw["title"]; raw != nil && !ok {
 		return fmt.Errorf("field title in TodoCreatedEventJson: required")
 	}
 	type Plain TodoCreatedEventJson
 	var plain Plain
-	if err := json.Unmarshal(b, &plain); err != nil {
+	if err := json.Unmarshal(value, &plain); err != nil {
 		return err
+	}
+	if len(plain.Description) > 4096 {
+		return fmt.Errorf("field %s length: must be <= %d", "description", 4096)
+	}
+	if len(plain.Title) > 256 {
+		return fmt.Errorf("field %s length: must be <= %d", "title", 256)
 	}
 	*j = TodoCreatedEventJson(plain)
 	return nil

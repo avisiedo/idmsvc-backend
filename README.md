@@ -1,10 +1,13 @@
-# idm-domains-backend
+# idmsvc-backend (FreeIPA Domain Join)
+
+**This project is currently inactive.  Issues and pull requests will
+not be attended to.**
 
 ## Getting started
 
 **Pre-requisites**:
 
-- golang 1.22 (not `gcc-go`)
+- golang 1.24 (not `gcc-go`)
 - docker or podman (>4.0.0)
 - docker-compose or podman-compose
 - python3
