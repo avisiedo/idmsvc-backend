@@ -117,15 +117,15 @@ services:
   #       timeout: 3s
   #       start_period: 5s
 
-  prometheus:
-    image:
-    environment: {}
-    ports: {}
-    volumes: {}
+  # prometheus:
+  #   image: docker.io/prom/prometheus:v3-distroless
+  #   environment: {}
+  #   ports: {}
+  #   volumes: {}
 
-  graphana:
-    image:
-    environment: {}
+  # graphana:
+  #   image: docker.io/grafana/grafana:main-ubuntu
+  #   environment: {}
 
   # 'make test' will fail with mock-rbac running
   mock-rbac:
