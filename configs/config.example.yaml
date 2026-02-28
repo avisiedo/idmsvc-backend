@@ -1,4 +1,9 @@
 ---
+
+# This file should have settings that are safe and appropriate
+# for PRODUCTION environments.  Use make variables or other
+# mechanisms to override values for dev/test contexts.
+
 logging:
   # level: warn should be the level in production
   # level: trace - Will display the sql statements, usefult for development
@@ -26,6 +31,9 @@ metrics:
 clients:
   inventory_base_url: http://localhost:8010/api/inventory/v1
   rbac_base_url: http://localhost:8020/api/rbac/v1
+  pendo_base_url: http://localhost:8030/api/pendo/v1
+  pendo_api_key: test-api-key
+  pendo_request_timeout_secs: 10
 
 app:
   name: idmsvc
@@ -37,7 +45,7 @@ app:
   # The pagination max limit to avoid bigger values and long requests
   pagination_max_limit: 100
   # Allow to inject a system identity for development propose
-  accept_x_rh_fake_identity: true
+  accept_x_rh_fake_identity: false  # be secure by default!
   # Validate API requests and response against the openapi specification
   validate_api: true
   # TODO Adapt this to ACG_CONFIG
@@ -47,4 +55,4 @@ app:
   #     python -c "import secrets; print(secrets.token_urlsafe())"
   secret: sFamo2ER65JN7wxZ48UZb5GbtDc053ahIPJ0Qx47bzA
   # Enable/Disable RBAC verification
-  enable_rbac: false
+  enable_rbac: true

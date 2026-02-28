@@ -3,23 +3,24 @@ package repository
 // https://pkg.go.dev/github.com/stretchr/testify/suite
 
 import (
-	"fmt"
-	"regexp"
+	"context"
+	"log/slog"
 	"strings"
 	"testing"
 
-	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	"github.com/openlyinc/pointy"
 	api_public "github.com/podengo-project/idmsvc-backend/internal/api/public"
 	"github.com/podengo-project/idmsvc-backend/internal/domain/model"
+	app_context "github.com/podengo-project/idmsvc-backend/internal/infrastructure/context"
 	"github.com/podengo-project/idmsvc-backend/internal/interface/interactor"
 	"github.com/podengo-project/idmsvc-backend/internal/test/builder/helper"
 	builder_model "github.com/podengo-project/idmsvc-backend/internal/test/builder/model"
+	test_sql "github.com/podengo-project/idmsvc-backend/internal/test/sql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"go.openly.dev/pointy"
 	"gorm.io/gorm"
 )
 
@@ -39,56 +40,6 @@ func (s *SuiteHost) TestNewHostRepository() {
 	assert.NotPanics(t, func() {
 		_ = NewHostRepository()
 	})
-}
-
-func (s *SuiteHost) helperTestMatchDomain(stage int, options *interactor.HostConfOptions, domains []model.Domain, mock sqlmock.Sqlmock, expectedErr error) {
-	for i := 1; i <= stage; i++ {
-		switch i {
-		case 1:
-			expectQuery := mock.ExpectQuery(regexp.QuoteMeta(`SELECT "domains"."id","domains"."created_at","domains"."updated_at","domains"."deleted_at","domains"."org_id","domains"."domain_uuid","domains"."domain_name","domains"."title","domains"."description","domains"."type","domains"."auto_enrollment_enabled" FROM "domains" left join ipas on domains.id = ipas.id WHERE domains.org_id = $1 AND domains.domain_uuid = $2 AND domains.domain_name = $3 AND domains.type = $4 AND "domains"."deleted_at" IS NULL`)).
-				WithArgs(
-					options.OrgId,
-					options.DomainId,
-					options.DomainName,
-					model.DomainTypeUint((string)(*options.DomainType)),
-				)
-			if i == stage && expectedErr != nil {
-				expectQuery.WillReturnError(expectedErr)
-			} else {
-				rows := sqlmock.NewRows([]string{
-					"id", "created_at", "updated_at", "deletet_at",
-
-					"org_id", "domain_uuid", "domain_name",
-					"title", "description", "type",
-					"auto_enrollment_enabled",
-				})
-				for j := range domains {
-					rows.AddRow(
-						domains[j].ID,
-						domains[j].CreatedAt,
-						domains[j].UpdatedAt,
-						domains[j].DeletedAt,
-
-						domains[j].OrgId,
-						domains[j].DomainUuid,
-						domains[j].DomainName,
-						domains[j].Title,
-						domains[j].Description,
-						domains[j].Type,
-						domains[j].AutoEnrollmentEnabled,
-					)
-				}
-				expectQuery = expectQuery.WillReturnRows(rows)
-			}
-		case 2:
-			if len(domains) == 0 {
-				helperTestFindByIDIpa(1, &domains[0], mock, expectedErr)
-			}
-			helperTestFindByIDIpa(4, &domains[0], mock, expectedErr)
-		default:
-			panic(fmt.Sprintf("scenario %d/%d is not supported", i, stage))
-		}
-	}
 }
 
 func (s *SuiteHost) TestMatchDomain() {
@@ -143,26 +94,31 @@ func (s *SuiteHost) TestMatchDomain() {
 			Build(),
 	}
 
+	// context is nil
+	assert.Panics(t, func() {
+		_, _ = s.repository.MatchDomain(nil, &interactor.HostConfOptions{})
+	})
+
 	// db is nil
-	domain, err := s.repository.MatchDomain(nil, &interactor.HostConfOptions{})
-	assert.Nil(t, domain)
-	require.EqualError(t, err, "code=500, message='db' cannot be nil")
+	assert.PanicsWithValue(t, "'db' could not be read", func() {
+		_, _ = s.repository.MatchDomain(context.Background(), &interactor.HostConfOptions{})
+	})
 
 	// options is nil
-	domain, err = s.repository.MatchDomain(s.DB, nil)
+	domain, err := s.repository.MatchDomain(s.Ctx, nil)
 	assert.Nil(t, domain)
 	require.EqualError(t, err, "code=500, message='options' cannot be nil")
 
 	// Error at Find
-	s.helperTestMatchDomain(1, options, domains, s.mock, gorm.ErrInvalidTransaction)
-	domain, err = s.repository.MatchDomain(s.DB, options)
+	test_sql.MatchDomain(1, s.mock, gorm.ErrInvalidTransaction, options, domains)
+	domain, err = s.repository.MatchDomain(s.Ctx, options)
 	assert.Nil(t, domain)
 	require.EqualError(t, err, "invalid transaction")
 
 	// Domains empty
 	domainsEmpty := []model.Domain{}
-	s.helperTestMatchDomain(1, options, domainsEmpty, s.mock, nil)
-	domain, err = s.repository.MatchDomain(s.DB, options)
+	test_sql.MatchDomain(1, s.mock, nil, options, domainsEmpty)
+	domain, err = s.repository.MatchDomain(s.Ctx, options)
 	assert.Nil(t, domain)
 	require.EqualError(t, err, "code=404, message=no matching domains")
 
@@ -171,14 +127,14 @@ func (s *SuiteHost) TestMatchDomain() {
 		domains[0],
 		domains[0],
 	}
-	s.helperTestMatchDomain(1, options, domainsMoreThan1, s.mock, nil)
-	domain, err = s.repository.MatchDomain(s.DB, options)
+	test_sql.MatchDomain(1, s.mock, nil, options, domainsMoreThan1)
+	domain, err = s.repository.MatchDomain(s.Ctx, options)
 	assert.Nil(t, domain)
 	require.EqualError(t, err, "code=409, message=matched 2 domains, only one expected")
 
 	// Success
-	s.helperTestMatchDomain(2, options, domains, s.mock, nil)
-	domain, err = s.repository.MatchDomain(s.DB, options)
+	test_sql.MatchDomain(2, s.mock, nil, options, domains)
+	domain, err = s.repository.MatchDomain(s.Ctx, options)
 	assert.NotNil(t, domain)
 	require.NoError(t, err)
 }
@@ -228,23 +184,29 @@ func (s *SuiteHost) TestSignHostConfToken() {
 				Build(),
 		).Build()
 
+	// guard ctx is nil
+	require.PanicsWithValue(t, "'ctx' is nil", func() {
+		_, _ = s.repository.SignHostConfToken(nil, nil, nil, nil)
+	})
+
 	// guard options is nil
-	token, err := s.repository.SignHostConfToken(nil, nil, nil)
+	ctx := app_context.CtxWithLog(context.Background(), slog.Default())
+	token, err := s.repository.SignHostConfToken(ctx, nil, nil, nil)
 	assert.Equal(t, "", token)
 	require.EqualError(t, err, "code=500, message='options' cannot be nil")
 
 	// guard domain is nil
-	token, err = s.repository.SignHostConfToken(nil, options, nil)
+	token, err = s.repository.SignHostConfToken(ctx, nil, options, nil)
 	assert.Equal(t, "", token)
 	require.EqualError(t, err, "code=500, message='domain' cannot be nil")
 
 	// no signers available
-	token, err = s.repository.SignHostConfToken(nil, options, &domain)
+	token, err = s.repository.SignHostConfToken(ctx, nil, options, &domain)
 	assert.Equal(t, "", token)
 	require.EqualError(t, err, "jws.Sign: no signers available. Specify an alogirthm and akey using jws.WithKey()")
 
 	// no signers
-	token, err = s.repository.SignHostConfToken(nil, options, &domain)
+	token, err = s.repository.SignHostConfToken(ctx, nil, options, &domain)
 	assert.Equal(t, "", token)
 	require.EqualError(t, err, "jws.Sign: no signers available. Specify an alogirthm and akey using jws.WithKey()")
 }

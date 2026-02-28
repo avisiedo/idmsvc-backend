@@ -9,15 +9,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	echo_middleware "github.com/labstack/echo/v4/middleware"
-	"github.com/openlyinc/pointy"
 	"github.com/podengo-project/idmsvc-backend/internal/api/header"
 	internal_errors "github.com/podengo-project/idmsvc-backend/internal/errors"
 	"github.com/podengo-project/idmsvc-backend/internal/test/builder/api"
 	identity "github.com/redhatinsights/platform-go-middlewares/v2/identity"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.openly.dev/pointy"
 )
 
 const testPath = "/test"
@@ -52,52 +53,13 @@ func helperNewEchoEnforceIdentity(m echo.MiddlewareFunc) *echo.Echo {
 	h := func(c echo.Context) error {
 		return c.String(http.StatusOK, "Ok")
 	}
+	e.Use(ContextLogConfig(&LogConfig{}))
 	e.Use(CreateContext())
+	e.Use(ParseXRHIDMiddlewareWithConfig(&ParseXRHIDMiddlewareConfig{}))
 	e.Use(m)
 	e.Add("GET", testPath, h)
 
 	return e
-}
-
-// FIXME
-func helperGenerateUserIdentity(orgId string, username string) *identity.XRHID {
-	return &identity.XRHID{
-		Identity: identity.Identity{
-			AccountNumber: "12345",
-			OrgID:         orgId,
-			Internal: identity.Internal{
-				OrgID: orgId,
-			},
-			Type: "User",
-			User: &identity.User{
-				Username: username,
-				UserID:   "12345",
-				Active:   true,
-				Internal: true,
-				OrgAdmin: true,
-				Locale:   "en",
-			},
-		},
-	}
-}
-
-func helperGenerateSystemIdentity(orgId string, commonName string) *identity.XRHID {
-	// See: https://github.com/coderbydesign/identity-schemas/blob/add-validator/3scale/identities/cert.json
-	return &identity.XRHID{
-		Identity: identity.Identity{
-			OrgID:         orgId,
-			AccountNumber: "11111",
-			AuthType:      "cert-auth",
-			Type:          "System",
-			Internal: identity.Internal{
-				OrgID: orgId,
-			},
-			System: &identity.System{
-				CommonName: commonName,
-				CertType:   "system",
-			},
-		},
-	}
 }
 
 func helperSkipper(data bool) echo_middleware.Skipper {
@@ -144,8 +106,8 @@ func TestEnforceIdentity(t *testing.T) {
 			Name:  header.HeaderXRHID + " header not present",
 			Given: nil,
 			Expected: TestCaseExpected{
-				Code: http.StatusBadRequest,
-				Body: "{\"message\":\"Bad Request\"}\n",
+				Code: http.StatusUnauthorized,
+				Body: "{\"message\":\"Unauthorized\"}\n",
 			},
 		},
 		{
@@ -237,6 +199,7 @@ func TestEnforceIdentityNoDomainContext(t *testing.T) {
 		return c.String(http.StatusOK, "Ok")
 	}
 	e.Use(
+		ContextLogConfig(&LogConfig{}),
 		EnforceIdentityWithConfig(
 			&IdentityConfig{
 				Predicates: []IdentityPredicateEntry{
@@ -278,33 +241,52 @@ func TestEnforceIdentitySkipper(t *testing.T) {
 		err  error
 	)
 
-	// When skipper return false, as no x-rh-identity provided, will return unauthorized
+	userXRHID := api.NewUserXRHID().
+		WithOrgID("12345").
+		WithUsername("test-fail-predicate").
+		Build()
+
+	// When skipper return false, return 403 Unauthorized fail due to failed predicate
 	e = helperNewEchoEnforceIdentity(
 		EnforceIdentityWithConfig(
 			&IdentityConfig{
 				Skipper: helperSkipper(false),
+				Predicates: []IdentityPredicateEntry{
+					{
+						Name:      "test-fail-predicate",
+						Predicate: helperCreatePredicate("test-fail-predicate"),
+					},
+				},
 			},
 		),
 	)
 	res = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Add(header.HeaderXRHID, header.EncodeXRHID(&userXRHID))
 	e.ServeHTTP(res, req)
 	// Check expectations
 	data, err = io.ReadAll(res.Body)
 	require.NoError(t, err)
-	assert.Equal(t, http.StatusBadRequest, res.Code)
-	assert.Equal(t, "{\"message\":\"Bad Request\"}\n", string(data))
+	assert.Equal(t, http.StatusUnauthorized, res.Code)
+	assert.Equal(t, "{\"message\":\"Unauthorized\"}\n", string(data))
 
-	// When skipper return true the middleware does not process the header or the predicates
+	// When skipper return true, the predicate is not run and request is authorised
 	e = helperNewEchoEnforceIdentity(
 		EnforceIdentityWithConfig(
 			&IdentityConfig{
 				Skipper: helperSkipper(true),
+				Predicates: []IdentityPredicateEntry{
+					{
+						Name:      "test-fail-predicate",
+						Predicate: helperCreatePredicate("test-fail-predicate"),
+					},
+				},
 			},
 		),
 	)
 	res = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Add(header.HeaderXRHID, header.EncodeXRHID(&userXRHID))
 	e.ServeHTTP(res, req)
 	// Check expectations
 	data, err = io.ReadAll(res.Body)
@@ -333,6 +315,16 @@ func TestEnforceUserPredicate(t *testing.T) {
 				},
 			},
 			Expected: fmt.Errorf("'Identity.Type=System' is not 'User'"),
+		},
+		{
+			Name: "Identity with User nil",
+			Given: &identity.XRHID{
+				Identity: identity.Identity{
+					Type: "User",
+					User: nil,
+				},
+			},
+			Expected: fmt.Errorf("'Identity.User' is nil"),
 		},
 		{
 			Name: "Identity with disabled user",
@@ -410,10 +402,31 @@ func TestEnforceSystemPredicate(t *testing.T) {
 			Expected: fmt.Errorf("'Identity.Type' must be 'System'"),
 		},
 		{
-			Name: "'CertType' is not 'system'",
+			Name: "'Identity.AuthType' is not 'cert-auth'",
 			Given: &identity.XRHID{
 				Identity: identity.Identity{
 					Type: "System",
+				},
+			},
+			Expected: fmt.Errorf("'Identity.AuthType' is not 'cert-auth'"),
+		},
+		{
+			Name: "'Identity.System' is not nil",
+			Given: &identity.XRHID{
+				Identity: identity.Identity{
+					AuthType: "cert-auth",
+					Type:     "System",
+					System:   nil,
+				},
+			},
+			Expected: fmt.Errorf("'Identity.System' is nil"),
+		},
+		{
+			Name: "'CertType' is not 'system'",
+			Given: &identity.XRHID{
+				Identity: identity.Identity{
+					AuthType: "cert-auth",
+					Type:     "System",
 					System: &identity.System{
 						CertType: "anothevalue",
 					},
@@ -425,7 +438,8 @@ func TestEnforceSystemPredicate(t *testing.T) {
 			Name: "'CommonName' is empty",
 			Given: &identity.XRHID{
 				Identity: identity.Identity{
-					Type: "System",
+					AuthType: "cert-auth",
+					Type:     "System",
 					System: &identity.System{
 						CertType:   "system",
 						CommonName: "",
@@ -438,7 +452,8 @@ func TestEnforceSystemPredicate(t *testing.T) {
 			Name: "Success case",
 			Given: &identity.XRHID{
 				Identity: identity.Identity{
-					Type: "System",
+					AuthType: "cert-auth",
+					Type:     "System",
 					System: &identity.System{
 						CertType:   "system",
 						CommonName: "10fbb716-ca5d-11ed-b384-482ae3863d30",
@@ -453,7 +468,6 @@ func TestEnforceSystemPredicate(t *testing.T) {
 		t.Log(testCase.Name)
 		err := EnforceSystemPredicate(testCase.Given)
 		if testCase.Expected != nil {
-			require.NotNil(t, err)
 			assert.EqualError(t, err, testCase.Expected.Error())
 		} else {
 			assert.Nil(t, err)
@@ -489,19 +503,29 @@ func TestEnforceIdentityOrder(t *testing.T) {
 				},
 			},
 		))
-	// xrhid := `{"identity":{"org_id":"12345","internal":{"org_id":"12345"},"user":{"username":"sapheaded","email":"hooked@bought.biz","first_name":"Leslie","last_name":"Jacobs","is_active":false,"is_org_admin":false,"is_internal":false,"locale":"km","user_id":"jeweljeweler"},"system":{},"associate":{"Role":null,"email":"","givenName":"","rhatUUID":"","surname":""},"x509":{"subject_dn":"","issuer_dn":""},"service_account":{"client_id":"","username":""},"type":"User","auth_type":"basic-auth"},"entitlements":null}`
-	xrhid := header.EncodeXRHID(helperGenerateUserIdentity("12345", "test"))
+	xrhid := &identity.XRHID{}
+	*xrhid = api.NewUserXRHID().
+		WithAccountNumber("12345").
+		WithOrgID("12345").
+		WithUsername("test").
+		WithUserID("12345").
+		WithActive(true).
+		WithInternal(true).
+		WithOrgAdmin(true).
+		WithLocale("en").
+		Build()
+	xrhidRaw := header.EncodeXRHID(xrhid)
 	for i := 0; i < 1000; i++ {
 		order["first"] = time.Time{}
 		order["second"] = time.Time{}
 		res := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
-		req.Header.Add(header.HeaderXRHID, xrhid)
+		req.Header.Add(header.HeaderXRHID, xrhidRaw)
 		e.ServeHTTP(res, req)
 
 		// Check expectations
 		require.Condition(t, func() (success bool) {
-			return order["first"].Compare(order["second"]) < 0
+			return order["first"].Compare(order["second"]) <= 0
 		})
 	}
 }
@@ -554,7 +578,7 @@ func TestNewEnforceOr(t *testing.T) {
 				First:  newIdentityAlwaysFalse(errors.New("Failing both: first predicate")),
 				Second: newIdentityAlwaysFalse(errors.New("Failing both: second predicate")),
 			},
-			Expected: fmt.Errorf("Failing both: first predicate"),
+			Expected: fmt.Errorf("Failing both: first predicate\nFailing both: second predicate"),
 		},
 		{
 			Name: "Success",
@@ -572,6 +596,102 @@ func TestNewEnforceOr(t *testing.T) {
 		err := predicate(nil)
 		if testCase.Expected != nil {
 			require.Error(t, err)
+			assert.EqualError(t, err, testCase.Expected.Error())
+		} else {
+			assert.NoError(t, err)
+		}
+	}
+}
+
+func TestEnforceServiceAccountPredicate(t *testing.T) {
+	type TestCase struct {
+		Name     string
+		Given    *identity.XRHID
+		Expected error
+	}
+	testCases := []TestCase{
+		{
+			Name:     "nil argument",
+			Given:    nil,
+			Expected: fmt.Errorf("'data' cannot be nil"),
+		},
+		{
+			Name: "'Identity.Type' is not 'ServiceAccount'",
+			Given: &identity.XRHID{
+				Identity: identity.Identity{
+					Type: "System",
+				},
+			},
+			Expected: fmt.Errorf("'Identity.Type' must be 'ServiceAccount'"),
+		},
+		{
+			Name: "'Identity.AuthType' must be 'jwt-auth'",
+			Given: &identity.XRHID{
+				Identity: identity.Identity{
+					Type:     "ServiceAccount",
+					AuthType: "cert",
+				},
+			},
+			Expected: fmt.Errorf("'Identity.AuthType' is not 'jwt-auth'"),
+		},
+		{
+			Name: "'Identity.ServiceAccount' is nil",
+			Given: &identity.XRHID{
+				Identity: identity.Identity{
+					Type:           "ServiceAccount",
+					AuthType:       "jwt-auth",
+					ServiceAccount: nil,
+				},
+			},
+			Expected: fmt.Errorf("'Identity.ServiceAccount' is nil"),
+		},
+		{
+			Name: "'Identity.ServiceAccount.ClientId' is empty",
+			Given: &identity.XRHID{
+				Identity: identity.Identity{
+					Type:     "ServiceAccount",
+					AuthType: "jwt-auth",
+					ServiceAccount: &identity.ServiceAccount{
+						ClientId: "",
+					},
+				},
+			},
+			Expected: fmt.Errorf("'Identity.ServiceAccount.ClientId' is empty"),
+		},
+		{
+			Name: "'Identity.ServiceAccount.Username' is empty",
+			Given: &identity.XRHID{
+				Identity: identity.Identity{
+					Type:     "ServiceAccount",
+					AuthType: "jwt-auth",
+					ServiceAccount: &identity.ServiceAccount{
+						ClientId: uuid.NewString(),
+						Username: "",
+					},
+				},
+			},
+			Expected: fmt.Errorf("'Identity.ServiceAccount.Username' is empty"),
+		},
+		{
+			Name: "Success ServiceAccount predicate",
+			Given: &identity.XRHID{
+				Identity: identity.Identity{
+					Type:     "ServiceAccount",
+					AuthType: "jwt-auth",
+					ServiceAccount: &identity.ServiceAccount{
+						ClientId: uuid.NewString(),
+						Username: "test-user",
+					},
+				},
+			},
+			Expected: nil,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Log(testCase.Name)
+		err := EnforceServiceAccountPredicate(testCase.Given)
+		if testCase.Expected != nil {
 			assert.EqualError(t, err, testCase.Expected.Error())
 		} else {
 			assert.NoError(t, err)

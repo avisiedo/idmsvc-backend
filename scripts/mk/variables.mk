@@ -16,7 +16,7 @@ COMPOSE_FILE ?= $(PROJECT_DIR)/deployments/docker-compose.yaml
 
 CONTAINER_IMAGE_BASE ?= quay.io/$(firstword $(subst +, ,$(QUAY_USER)))/$(APP_NAME)-$(APP_COMPONENT)
 
-GO_VERSION ?= 1.21
+GO_VERSION ?= 1.24.4
 
 # Tools and their dependencies
 # Build dependencies
@@ -24,7 +24,7 @@ TOOLS_BIN := tools/bin
 
 COBRA_CLI := $(TOOLS_BIN)/cobra-cli
 GODA := $(TOOLS_BIN)/goda
-GOJSONSCHEMA := $(TOOLS_BIN)/gojsonschema
+GOJSONSCHEMA := $(TOOLS_BIN)/go-jsonschema
 GOLANGCI_LINT := $(TOOLS_BIN)/golangci-lint
 MOCKERY := $(TOOLS_BIN)/mockery
 OAPI_CODEGEN := $(TOOLS_BIN)/oapi-codegen
@@ -46,7 +46,7 @@ TOOLS := \
 TOOLS_DEPS := tools/go.mod tools/go.sum tools/tools.go | $(TOOLS_BIN)
 
 #
-# Kafka configuration variables
+# Database configuration variables
 #
 
 LOAD_DB_CFG_WITH_YQ := n
@@ -130,3 +130,11 @@ CLIENTS_RBAC_BASE_URL ?= http://localhost:8020/api/rbac/v1
 export CLIENTS_RBAC_BASE_URL
 APP_CLIENTS_RBAC_PROFILE ?= domain-admin
 export APP_CLIENTS_RBAC_PROFILE
+
+# Pendo configuration variables - using mock server
+CLIENTS_PENDO_BASE_URL ?= http://localhost:8010
+export CLIENTS_PENDO_BASE_URL
+CLIENTS_PENDO_API_KEY ?= pendo-api-key
+export CLIENTS_PENDO_API_KEY
+CLIENTS_PENDO_TRACK_EVENT_KEY ?= track-event-key
+export CLIENTS_PENDO_TRACK_EVENT_KEY

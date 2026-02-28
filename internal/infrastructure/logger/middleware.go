@@ -1,10 +1,12 @@
 package logger
 
 import (
+	"log/slog"
+
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/podengo-project/idmsvc-backend/internal/api/header"
-	"golang.org/x/exp/slog"
+	app_context "github.com/podengo-project/idmsvc-backend/internal/infrastructure/context"
 )
 
 // This requires the following values to be set in
@@ -18,6 +20,9 @@ func MiddlewareLogValues(c echo.Context, v middleware.RequestLoggerValues) error
 	var logLevel slog.Level
 	var logAttr []slog.Attr = make([]slog.Attr, 5)
 
+	ctx := c.Request().Context()
+	log := app_context.LogFromCtx(ctx)
+
 	req := c.Request()
 	res := c.Response()
 
@@ -27,7 +32,6 @@ func MiddlewareLogValues(c echo.Context, v middleware.RequestLoggerValues) error
 	}
 
 	logAttr = append(logAttr,
-		slog.String("request_id", request_id),
 		slog.String("method", v.Method),
 		slog.String("uri", v.URI),
 		slog.Int("status", v.Status),
@@ -39,8 +43,8 @@ func MiddlewareLogValues(c echo.Context, v middleware.RequestLoggerValues) error
 		logAttr = append(logAttr, slog.String("err", v.Error.Error()))
 	}
 
-	slog.LogAttrs(
-		c.Request().Context(),
+	log.LogAttrs(
+		ctx,
 		logLevel,
 		"http_request",
 		logAttr...,

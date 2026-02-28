@@ -4,16 +4,18 @@ import (
 	_ "embed"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 
 	"github.com/labstack/echo/v4"
 	echo_middleware "github.com/labstack/echo/v4/middleware"
-	"github.com/podengo-project/idmsvc-backend/internal/api/header"
 	"github.com/podengo-project/idmsvc-backend/internal/api/openapi"
 	"github.com/podengo-project/idmsvc-backend/internal/api/public"
 	"github.com/podengo-project/idmsvc-backend/internal/config"
+	"github.com/podengo-project/idmsvc-backend/internal/handler"
 	"github.com/podengo-project/idmsvc-backend/internal/infrastructure/middleware"
 	rbac_data "github.com/podengo-project/idmsvc-backend/internal/infrastructure/middleware/rbac-data"
+	"github.com/podengo-project/idmsvc-backend/internal/metrics"
 	"github.com/podengo-project/idmsvc-backend/internal/usecase/client/rbac"
 )
 
@@ -48,18 +50,19 @@ var mixedEnforceRoutes = []enforceRoute{
 //go:embed rbac.yaml
 var rbacMapBytes []byte
 
-func getOpenapiPaths(c RouterConfig) func() []string {
-	if c == (RouterConfig{}) {
-		panic(fmt.Errorf("'c' is empty"))
+func getOpenapiPaths(cfg *config.Config, version string) func() []string {
+	if cfg == nil {
+		panic("'cfg' is nil")
 	}
-	if c.Version == "" {
-		panic(fmt.Errorf("'c.Version' is empty"))
+	if version == "" {
+		panic("'version' is an empty string")
 	}
-	majorVersion := strings.Split(c.Version, ".")[0]
-	fullVersion := c.Version
+	majorVersion := strings.Split(version, ".")[0]
+	fullVersion := version
+	pathPrefix := trimVersionFromPathPrefix(cfg.Application.PathPrefix)
 	cachedPaths := []string{
-		fmt.Sprintf("%s/v%s/openapi.json", c.PublicPath, fullVersion),
-		fmt.Sprintf("%s/v%s/openapi.json", c.PublicPath, majorVersion),
+		fmt.Sprintf("%s/v%s/openapi.json", pathPrefix, fullVersion),
+		fmt.Sprintf("%s/v%s/openapi.json", pathPrefix, majorVersion),
 	}
 	return func() []string {
 		return cachedPaths
@@ -126,23 +129,36 @@ func initRbacMiddleware(cfg *config.Config) echo.MiddlewareFunc {
 	return rbacMiddleware
 }
 
-func newGroupPublic(e *echo.Group, c RouterConfig) *echo.Group {
+func guardNewGroupPublic(e *echo.Group, cfg *config.Config, app handler.Application, metrics *metrics.Metrics) {
 	if e == nil {
-		panic("echo group is nil")
+		panic("'e' is nil")
 	}
-	if c.Handlers == nil {
-		panic("'handlers' is nil")
+	if cfg == nil {
+		panic("'cfg' is nil")
 	}
+	if app == nil {
+		panic("'app' is nil")
+	}
+	if metrics == nil {
+		panic("'metrics' is nil")
+	}
+}
 
+func newGroupPublic(e *echo.Group, cfg *config.Config, app handler.Application, metrics *metrics.Metrics) *echo.Group {
+	guardNewGroupPublic(e, cfg, app, metrics)
 	// Initialize middlewares
 	fakeIdentityMiddleware := middleware.DefaultNooperation
-	if c.IsFakeEnabled {
+	if cfg.Application.AcceptXRHFakeIdentity {
 		fakeIdentityMiddleware = middleware.FakeIdentityWithConfig(
 			&middleware.FakeIdentityConfig{
 				Skipper: skipperSystemPredicate,
 			},
 		)
 	}
+
+	parseXRHIDMiddleware := middleware.ParseXRHIDMiddlewareWithConfig(
+		&middleware.ParseXRHIDMiddlewareConfig{},
+	)
 
 	mixedIdentityMiddleware := middleware.EnforceIdentityWithConfig(
 		&middleware.IdentityConfig{
@@ -153,6 +169,7 @@ func newGroupPublic(e *echo.Group, c RouterConfig) *echo.Group {
 					Predicate: middleware.NewEnforceOr(
 						middleware.EnforceSystemPredicate,
 						middleware.EnforceUserPredicate,
+						middleware.EnforceServiceAccountPredicate,
 					),
 				},
 			},
@@ -169,33 +186,32 @@ func newGroupPublic(e *echo.Group, c RouterConfig) *echo.Group {
 			},
 		},
 	)
-	userIdentityMiddleware := middleware.EnforceIdentityWithConfig(
+	userAndSAIdentityMiddleware := middleware.EnforceIdentityWithConfig(
 		&middleware.IdentityConfig{
 			Skipper: skipperUserPredicate,
 			Predicates: []middleware.IdentityPredicateEntry{
 				{
-					Name:      "user-identity",
-					Predicate: middleware.EnforceUserPredicate,
+					Name: "user-and-sa-identity",
+					Predicate: middleware.NewEnforceOr(
+						middleware.EnforceUserPredicate,
+						middleware.EnforceServiceAccountPredicate,
+					),
 				},
 			},
 		},
 	)
 
 	// FIXME Refactor to inject the config.Config dependency
-	rbacMiddleware := initRbacMiddleware(config.Get())
+	rbacMiddleware := initRbacMiddleware(cfg)
+	bodyLimit := echo_middleware.BodyLimit(strconv.Itoa(cfg.Application.SizeLimitRequestBody))
 
 	metricsMiddleware := middleware.MetricsMiddlewareWithConfig(
 		&middleware.MetricsConfig{
-			Metrics: c.Metrics,
-		},
-	)
-	requestIDMiddleware := echo_middleware.RequestIDWithConfig(
-		echo_middleware.RequestIDConfig{
-			TargetHeader: header.HeaderXRequestID, // TODO Check this name is the expected
+			Metrics: metrics,
 		},
 	)
 	validateAPI := middleware.DefaultNooperation
-	if c.EnableAPIValidator {
+	if cfg.Application.ValidateAPI {
 		middleware.InitOpenAPIFormats()
 		validateAPI = middleware.RequestResponseValidatorWithConfig(
 			// FIXME Get the values from the application config
@@ -210,22 +226,26 @@ func newGroupPublic(e *echo.Group, c RouterConfig) *echo.Group {
 	// Wire the middlewares
 	e.Use(
 		middleware.CreateContext(),
+		metricsMiddleware,
 		fakeIdentityMiddleware,
+		parseXRHIDMiddleware,
 		mixedIdentityMiddleware,
 		systemIdentityMiddleware,
-		userIdentityMiddleware,
+		userAndSAIdentityMiddleware,
 		rbacMiddleware,
-		metricsMiddleware,
 		echo_middleware.Secure(),
 		// TODO Check if this is made by 3scale
 		// middleware.CORSWithConfig(middleware.CORSConfig{}),
-		requestIDMiddleware,
+
+		// bodyLimit should be before validateAPI, because validateAPI
+		// will read the whole request body to validate the input.
+		bodyLimit,
 		validateAPI,
 	)
 
 	// Setup routes
-	public.RegisterHandlersWithBaseURL(e, c.Handlers, "")
-	openapi.RegisterHandlersWithBaseURL(e, c.Handlers, "")
+	public.RegisterHandlersWithBaseURL(e, app, "")
+	openapi.RegisterHandlersWithBaseURL(e, app, "")
 	return e
 }
 
@@ -290,8 +310,8 @@ func skipperMixedPredicate(ctx echo.Context) bool {
 }
 
 // newSkipperOpenapi skip /api/idmsvc/v*/openapi.json path
-func newSkipperOpenapi(c RouterConfig) echo_middleware.Skipper {
-	paths := getOpenapiPaths(c)()
+func newSkipperOpenapi(cfg *config.Config, version string) echo_middleware.Skipper {
+	paths := getOpenapiPaths(cfg, version)()
 	return func(ctx echo.Context) bool {
 		route := ctx.Path()
 		for i := range paths {

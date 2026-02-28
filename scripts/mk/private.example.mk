@@ -24,7 +24,12 @@ export QUAY_LOGIN := $(firstword $(subst +, ,$(QUAY_USER)))
 # QUAY_REPOSITORY is used to compose the base image name when deploying into ephemeral
 # TODO Set your QUAY_REPOSITORY ; you have to create it and grant
 #      write permissions to the above robot account
-export QUAY_REPOSITORY := 7d
+export QUAY_REPOSITORY := 
+# QUAY_EXPIRATION is the time the container image is retained in your
+# container registry; see scripts/mk/container.mk the 'container-build'
+# rule and this link: 
+# https://docs.redhat.com/en/documentation/red_hat_quay/3.10/html/about_quay_io/working-with-tags#tag-expiration
+export QUAY_EXPIRATION := 1d
 
 # TODO Update CONTAINER_IMAGE_BASE accoddingly to point out to your repository
 # This should point out to your repository
@@ -35,7 +40,7 @@ CONTAINER_IMAGE_BASE ?= quay.io/$(QUAY_LOGIN)/$(QUAY_REPOSITORY)
 #   https://access.redhat.com/RegistryAuthentication
 #   https://access.redhat.com/RegistryAuthentication#creating-registry-service-accounts-6
 # To retrieve your token or regenerate it, go to:
-#   https://access.redhat.com/terms-based-registry/#/token/YOUR_USERNAME
+#   https://access.redhat.com/terms-based-registry/token/YOUR_USERNAME
 # Use the user and token from the "Docker login" tab (e.g. `12345|nickname`).
 # If the Dockerfile is using the authenticated repositories, you will need this values
 # The build_deploy.sh script which is called by jenkins job automation, log in the
@@ -51,7 +56,7 @@ POOL ?= default
 
 # Set token expiration time, expressed in seconds (default 2 hours)
 APP_TOKEN_EXPIRATION_SECONDS ?= 7200
-APP_ENABLE_RBAC ?= true
+# APP_ENABLE_RBAC ?= true
 
 ########### NO SECRETS BUT GENERAL OVERRIDES
 

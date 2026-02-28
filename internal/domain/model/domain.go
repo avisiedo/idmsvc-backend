@@ -33,7 +33,7 @@ var (
 
 type Domain struct {
 	gorm.Model
-	OrgId                 string
+	OrgId                 string    `gorm:"index:idx_domains_org_id"`
 	DomainUuid            uuid.UUID `gorm:"unique"`
 	DomainName            *string
 	Title                 *string
@@ -86,7 +86,7 @@ func (d *Domain) FillAndPreload(db *gorm.DB) (err error) {
 	switch *d.Type {
 	case DomainTypeIpa:
 		d.IpaDomain = &Ipa{}
-		if err := db.Debug().
+		if err := db.
 			Model(&Ipa{}).
 			Preload("CaCerts").
 			Preload("Servers").

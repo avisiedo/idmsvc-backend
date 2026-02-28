@@ -3,18 +3,17 @@
 ##
 
 # https://catalog.redhat.com/software/containers/ubi9/go-toolset/61e5c00b4ec9945c18787690
-FROM registry.access.redhat.com/ubi9/go-toolset:1.21.9-1.1715774364@sha256:cc5b93478d74c7a67d3add8be3b41a900f6c97b0cece878465d6aa84edb0e693 as builder
+FROM registry.access.redhat.com/ubi9/go-toolset:9.7-1771417345 AS builder
 LABEL idmsvc-backend=builder
 # https://developers.redhat.com/articles/2022/05/31/your-go-application-fips-compliant
 ENV OPENSSL_FORCE_FIPS_MODE=1
 WORKDIR /go/src/app
 COPY . .
 USER 0
-RUN git log -1
 RUN make bin/mock-rbac
 
 # https://catalog.redhat.com/software/containers/ubi9/ubi-minimal/615bd9b4075b022acc111bf5
-FROM registry.access.redhat.com/ubi9/ubi-minimal:9.4-949.1714662671@sha256:cb6f20b9225031c8d704af95932c0331cfe0b229cd5b3dd805681d92a439186e
+FROM registry.access.redhat.com/ubi9/ubi-minimal:9.6-1753762263@sha256:67fee1a132e8e326434214b3c7ce90b2500b2ad02c9790cc61581feb58d281d5
 LABEL idmsvc-backend=backend
 # https://developers.redhat.com/articles/2022/05/31/your-go-application-fips-compliant
 ENV OPENSSL_FORCE_FIPS_MODE=1

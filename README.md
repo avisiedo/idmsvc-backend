@@ -1,24 +1,27 @@
-# idm-domains-backend
+# idmsvc-backend (FreeIPA Domain Join)
+
+**This project is currently inactive.  Issues and pull requests will
+not be attended to.**
 
 ## Getting started
 
 **Pre-requisites**:
 
-- golang 1.21 (not `gcc-go`)
+- golang 1.24 (not `gcc-go`)
 - docker or podman (>4.0.0)
 - docker-compose or podman-compose
 - python3
 - openshift client [Installing OpenShift Client](https://docs.openshift.com/container-platform/4.12/cli_reference/openshift_cli/getting-started-cli.html#installing-openshift-cli).
 
-Packages for fedora 39:
+Packages for fedora 41:
 
 ```sh
 $ sudo dnf upgrade
-$ sudo dnf install git golang podman podman-compose
+$ sudo dnf install git golang podman podman-compose delve
 $ sudo dnf remove gcc-go
 ```
 
-(Optional) Installing VSCode by repository on fedora 37:
+(Optional) Installing VSCode by repository on fedora 41:
 
 ```sh
 $ sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc
@@ -38,13 +41,16 @@ $ sudo dnf install code
 
 - Go (highly recommended)
 - REST Client
-- 42Crunch OpenAPI
 
 Once tasks:
 
 - Install used tools: `make install-tools`
 - Create your `configs/config.yaml` file: `cp -vf configs/config.example.yaml configs/config.yaml`
-- Create your `secrets/private.mk` file: `cp -vf scripts/mk/private.example.mk secrets/private.mk`
+- Create your `secrets/private.mk` file:
+  ```sh
+  $ mkdir secrets
+  $ cp -vf scripts/mk/private.example.mk secrets/private.mk
+  ```
 - Follow the instructions in `secrets/private.mk` to set up Quay repository
   and Red Hat Repository access.
 - Create your `configs/bonfire.yaml` file: `cp -vf configs/bonfire.example.yaml configs/bonfire.yaml`
@@ -57,11 +63,12 @@ Once tasks:
 
 - Build by: `make build`
 - Lint code by: `make lint`
-- Start local infrastructure by: `make compose-up`
+- Start local infrastructure by: `make compose-up mock-rbac-up`
 - Launch tests by: `make test`
 - Run by: `make run`
 - Try locally by running scripts at: `./test/scripts/local-*.sh`
-- Stop local infrastructure by: `make compose-down`
+  You can override the used xrhid by: `XRHID_AS="service-account" ./test/scripts/local-*.sh`
+- Stop local infrastructure by: `make compose-down mock-rbac-down`
 - Clean local infrastructure by: `make compose-clean`
 - Print out useful rules by: `make help`
 
@@ -70,9 +77,16 @@ Once tasks:
 - Run with specific rbac profile and use local rbac mock:
 
   ```sh
-  $ make compose-clean clean build compose-up run APP_CLIENTS_RBAC_PROFILE=domain-read-only
-  $ curl "http://localhost:8020/api/rbac/v1/authorize?application=idmsvc"
-  $ ./test/scripts/local-domains-list.sh
+  # If we use APP_CLIENTS_RBAC_PROFILE=custom
+  # and we are checking custom changes, we would need
+  # to restart mock-rbac, to simplify we can do:
+  $ make compose-clean compose-build clean build compose-up
+
+  # And finally start the service by:
+  $ make run APP_CLIENTS_RBAC_PROFILE=domain-readonly
+  $ curl "http://localhost:8020/api/rbac/v1/access?application=idmsvc"
+  $ ./test/scripts/local-domains-list.sh   # Will success
+  $ ./test/scripts/local-domains-token.sh  # Will fail as unauthorized
   ```
 
 > - Bear in mind the rbac mock is started with the local infra.
@@ -90,26 +104,50 @@ For ephemeral environment look at: [DEVELOPMENT.md](DEVELOPMENT.md) file.
 ```raw
 internal/   Define the internal application components
 ├── api
+│   ├── header: Hold code related with the http headers.
+│   ├── metrics: Hold the service interface and definition for the
+│   │            /metrics endpoint.
+│   ├── openapi: Hold service interface and definitions for the
+│   │            /openapi.json endpoint.
 │   ├── private: The code generated for the private api.
 │   └── public: The code generated for the public api (types, http
-│               framework server specific, spec)
+│               framework server specific, spec).
 ├── config: Hold the configuration structure and functions to read it.
-├── domain
-│   └── model: Define the business model of the application.
+├── domain/model: Define the business data model of the application;
+│                 in this scenario match the database, so it uses the
+│                 model for gorm.
 ├── handler: Hold application and handler interfaces.
 │   └── impl: Implementation for the application interface.
 ├── infrastructure: specific code coupled to the http framework.
+│   ├── context: helpers to set/get data to/from the go context.
+│   ├── datastore: helpers to initialize database connector, and
+│   │              run migrations.
+│   ├── event: (delete) infrastructure to deal with asynchronous
+│   │          processors in a similar way as the http handlers.
+│   ├── logger: helper to start the log infrastructure using slog.
 │   ├── middleware: all the middleware components comes here.
 │   ├── router: wire the route of the service composing the different
 │   │           api groups, and adding the middlewares.
-│   └── service: define the Service interface
-│       └── impl: Implement a Service for the application and different
-|                 listeners (api, metrics, kafka consumer)
+│   ├── secrets: logic related with secrets.
+│   ├── service: define the Service interface, understanding each service
+│   │   │        as a some listener at a port, or a client broker to
+│   │   │        process asynchronous events.
+│   │   └── impl: Implement a Service for the application and different
+|   │             listeners (api, metrics, kafka consumer)
+|   └── token: logic to deal with domain and hostconf tokens.
 ├── interface: Define the interfaces for `interactor`,
 │              `repository` and `presenter` components.
 ├── test: All the helpers for tests are here
-│   └── mock: Store all the generated mocks for the interfaces,
-│             keeping the same directory structure
+│   ├── assert: provide new asserts to simplify test expectations.
+│   ├── builder: make easier to generate new filled business data
+│   │            and API structures.
+│   ├── client: some helpers to deal with client handler tests.
+│   ├── mock: Store all the generated mocks for the interfaces,
+│   │         keeping the same directory structure
+│   ├── perf: Performance tests 
+│   ├── smoke: Smoke tests for the API.
+│   └── sql: Helpers for testing the database repository. Help on
+│            preparing the expectation for the database.
 └── usecase: specific implementation for the `interface` directory
              for interactor, presenter and repository components.
 
@@ -122,7 +160,7 @@ deployments/   Hold descriptors to deploy with clowder and local
 
 scripts/  Store useful scripts for the repository
 ├── db
-│   └── migrations:  sql scripts for the migrations.
+│   └── migrations: sql scripts for the migrations.
 ├── http:  Hold .http files to quickly check the API
 └── mk:  Hold all the makefile scripts
 ```
@@ -136,8 +174,7 @@ See: [Architecture and design](docs/ARCHITECTURE.md).
 ## Design API
 
 You can design your API importing the `public.openapi.yaml` file
-at [api-designer](https://console.redhat.com/application-services/api-designer/designs)
-at [console.redhat.com](https://console.redhat.com).
+at [apicurito](https://console.redhat.com/application-services/api-designer/designs).
 
 When you have made your changes, then do click **Actions** > **Download Design**,
 and copy the downloaded file as `api/public.openapi.yaml`.
@@ -175,7 +212,8 @@ Tech stack:
 
 - Echo Framework: https://echo.labstack.com
 - Logs:
-  - https://pkg.go.dev/golang.org/x/exp/slog
+  - https://pkg.go.dev/log/slog
+  - https://lukas.zapletalovi.com/posts/2023/about-structured-logging-in-go121/
 - Database: https://gorm.io/docs/index.html
 - Kafka Client Library: https://github.com/confluentinc/confluent-kafka-go
 - Testing:
@@ -202,6 +240,4 @@ Http clients
 - https://github.com/AnWeber/httpyac
 
 Validate API
-- https://github.com/42Crunch/vscode-openapi
-- https://quobix.com/vacuum/ (actually integrated in `make lint`)
-
+- https://quobix.com/vacuum/

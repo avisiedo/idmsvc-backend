@@ -1,20 +1,23 @@
 package impl
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
-	"github.com/openlyinc/pointy"
 	"github.com/podengo-project/idmsvc-backend/internal/domain/model"
 	internal_errors "github.com/podengo-project/idmsvc-backend/internal/errors"
-	slog "golang.org/x/exp/slog"
+	app_context "github.com/podengo-project/idmsvc-backend/internal/infrastructure/context"
+	"go.openly.dev/pointy"
 	"gorm.io/gorm"
 )
 
 func (a *application) findIpaById(tx *gorm.DB, orgId string, UUID uuid.UUID) (data *model.Domain, err error) {
-	if data, err = a.domain.repository.FindByID(tx, orgId, UUID); err != nil {
+	ctx := app_context.CtxWithDB(context.Background(), tx)
+	if data, err = a.domain.repository.FindByID(ctx, orgId, UUID); err != nil {
 		return nil, err
 	}
 	if *data.Type != model.DomainTypeIpa {
@@ -26,17 +29,19 @@ func (a *application) findIpaById(tx *gorm.DB, orgId string, UUID uuid.UUID) (da
 	return data, nil
 }
 
-func ensureSubscriptionManagerIDAuthorizedToUpdate(
+func subscriptionManagerIDIncluded(
+	ctx context.Context,
 	subscriptionManagerID string,
 	servers []model.IpaServer,
-) error {
+) (bool, error) {
+	logger := app_context.LogFromCtx(ctx)
 	if subscriptionManagerID == "" {
-		slog.Error("'subscriptionManagerID' is an empty string")
-		return fmt.Errorf("'subscriptionManagerID' is empty")
+		logger.Error("'subscriptionManagerID' is an empty string")
+		return false, fmt.Errorf("'subscriptionManagerID' is empty")
 	}
 	if servers == nil {
-		slog.Error("'servers' is nil")
-		return internal_errors.NilArgError("servers")
+		logger.Error("'servers' is nil")
+		return false, internal_errors.NilArgError("servers")
 	}
 	for i := range servers {
 		rhsmid := "nil"
@@ -44,7 +49,7 @@ func ensureSubscriptionManagerIDAuthorizedToUpdate(
 			rhsmid = *servers[i].RHSMId
 		}
 
-		slog.Debug("Checking server",
+		logger.Debug("Checking server",
 			slog.Bool("HCCUpdateServer", servers[i].HCCUpdateServer),
 			slog.String("RHSMId", rhsmid),
 			slog.String("subscriptionManagerID", subscriptionManagerID),
@@ -52,13 +57,59 @@ func ensureSubscriptionManagerIDAuthorizedToUpdate(
 		if servers[i].HCCUpdateServer &&
 			servers[i].RHSMId != nil &&
 			*servers[i].RHSMId == subscriptionManagerID {
-			return nil
+			logger.Debug("server found in the list of enabled servers",
+				slog.String("subscriptionManagerID", subscriptionManagerID),
+				slog.Bool("HCCUpdateServer", true),
+			)
+			return true, nil
 		}
+	}
+	logger.Debug("server not found in the list of enabled servers",
+		slog.String("subscriptionManagerID", subscriptionManagerID),
+	)
+	return false, nil
+}
+
+// ensureSubscriptionManagerIDAuthorizedToUpdate checks if a server with
+// the subscription manager ID is authorized to update the domain.
+// Returns a Forbidden error if it is not.
+func ensureSubscriptionManagerIDAuthorizedToUpdate(
+	ctx context.Context,
+	subscriptionManagerID string,
+	servers []model.IpaServer,
+) error {
+	included, err := subscriptionManagerIDIncluded(ctx, subscriptionManagerID, servers)
+	if err != nil {
+		return err
+	}
+	if included {
+		return nil
 	}
 	return internal_errors.NewHTTPErrorF(
 		http.StatusForbidden,
-		"'subscriptionManagerID' not found into the authorized list of rhel-idm servers",
+		"update server is not authorized to update the domain",
 	)
+}
+
+// ensureUpdateServerEnabledForUpdates checks if the update server with the subscription
+// manager ID is included in the list of servers and is enabled for updates.
+// Returns a BadRequest error if it is not.
+func ensureUpdateServerEnabledForUpdates(
+	ctx context.Context,
+	subscriptionManagerID string,
+	servers []model.IpaServer,
+) error {
+	included, err := subscriptionManagerIDIncluded(ctx, subscriptionManagerID, servers)
+	if err != nil {
+		return err
+	}
+	if !included {
+		return internal_errors.NewHTTPErrorF(
+			http.StatusBadRequest,
+			"update server's 'Subscription Manager ID' not found in the authorized list of rhel-idm servers",
+		)
+	}
+	return nil
 }
 
 // fillDomain is a helper function to copy Ipa domain

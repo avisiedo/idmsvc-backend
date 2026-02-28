@@ -10,6 +10,7 @@ import (
 	builder_api "github.com/podengo-project/idmsvc-backend/internal/test/builder/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 )
 
 // SuiteDomainUpdateUser is the suite to validate the smoke test when a user update the domain endpoint at PATCH /api/idmsvc/v1/domains/:domain_id
@@ -26,9 +27,9 @@ func (s *SuiteDomainUpdateUser) TearDownTest() {
 }
 
 func (s *SuiteDomainUpdateUser) TestPatchDomain() {
-	xrhidEncoded := header.EncodeXRHID(&s.UserXRHID)
 	url := fmt.Sprintf("%s/%s/%s", s.DefaultPublicBaseURL(), "domains", s.Domains[0].DomainId.String())
 	patchedDomain := builder_api.NewUpdateDomainUserRequest().Build()
+	xrhids := []XRHIDProfile{XRHIDUser, XRHIDServiceAccount}
 
 	// Prepare the tests
 	testCases := []TestCase{
@@ -39,15 +40,13 @@ func (s *SuiteDomainUpdateUser) TestPatchDomain() {
 				URL:    url,
 				Header: http.Header{
 					header.HeaderXRequestID: {"test_domain_patch"},
-					header.HeaderXRHID:      {xrhidEncoded},
 				},
 				Body: patchedDomain,
 			},
 			Expected: TestCaseExpect{
 				StatusCode: http.StatusOK,
 				Header: http.Header{
-					header.HeaderXRequestID: {"test_domain_patch"},
-					header.HeaderXRHID:      nil,
+					header.HeaderXRHID: nil,
 				},
 				BodyFunc: WrapBodyFuncDomainResponse(func(t *testing.T, body *public.Domain) error {
 					require.NotNil(t, body)
@@ -67,5 +66,14 @@ func (s *SuiteDomainUpdateUser) TestPatchDomain() {
 	}
 
 	// Execute the test cases
-	s.RunTestCases(testCases)
+	for _, xrhid := range xrhids {
+		for i := range testCases {
+			testCases[i].Given.XRHIDProfile = xrhid
+		}
+		s.RunTestCases(testCases)
+	}
+}
+
+func TestSuiteDomainUpdateUser(t *testing.T) {
+	suite.Run(t, new(SuiteDomainUpdateUser))
 }

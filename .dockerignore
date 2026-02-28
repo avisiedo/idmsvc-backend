@@ -1,22 +1,38 @@
-.podman
-.docker
-.kube
+# By default ignore
+**/*
 
-.DS_Store
-.cicd_bootstrap.sh
-secrets
-.venv
-bin
-tmp.*/**
-**/__debug_bin
+# Root files
+!LICENSE
+!Makefile
+!go.mod
+!go.sum
 
-*.log
+# private packages
+!/internal
+!/internal/**/*
 
-configs
-!configs/config.example.yaml
+# main binaries
+!/cmd
+!/cmd/**/*
 
-# File generated when running unit tests
-coverage.out
+# API rest specifications
+!/api
+!/api/**
 
-# NOTE: .git directory is not listed here. `go build` needs the full `.git`
-# directory to include VCS information in go binaries.
+# Grafana dashboard
+!/dashboards
+!/dashboards/**/*
+
+# Scripts
+!/scripts
+!/scripts/**/*
+
+# Configs
+!/configs
+!/configs/**/*
+
+# tools/bin
+!/tools
+!/tools/**/*
+/tools/bin
+

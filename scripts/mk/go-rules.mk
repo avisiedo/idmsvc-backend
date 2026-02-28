@@ -116,6 +116,11 @@ test-smoke:  ## Run smoke tests
 	CLIENTS_RBAC_BASE_URL="http://localhost:8021/api/rbac/v1" \
 	go test -parallel 1 ./internal/test/smoke/... -test.failfast -test.v
 
+.PHONY: test-perf
+test-perf:  ## Run smoke tests
+	CLIENTS_RBAC_BASE_URL="http://localhost:8021/api/rbac/v1" \
+	go test -parallel 1 ./internal/test/perf/... -test.failfast -test.v -timeout 30m
+
 # Add dependencies from binaries to all the the sources
 # so any change is detected for the build rule
 $(patsubst cmd/%,$(BIN)/%,$(wildcard cmd/*)): $(shell find $(PROJECT_DIR)/cmd -type f -name '*.go') $(shell find $(PROJECT_DIR)/pkg -type f -name '*.go' 2>/dev/null) $(shell find $(PROJECT_DIR)/internal -type f -name '*.go' 2>/dev/null)
@@ -197,12 +202,14 @@ $(EVENT_SCHEMA_DIR)/%.event.json: $(EVENT_MESSAGE_DIR)/%.event.yaml
 MOCK_DIRS := internal/api/private \
 	internal/api/public \
 	internal/api/openapi \
+	internal/api/metrics \
 	internal/interface/repository \
 	internal/interface/interactor \
 	internal/interface/presenter \
 	internal/interface/event \
 	internal/interface/client/inventory \
 	internal/interface/client/rbac \
+	internal/interface/client/pendo \
 	internal/handler \
 	internal/infrastructure/service \
 	internal/infrastructure/event \

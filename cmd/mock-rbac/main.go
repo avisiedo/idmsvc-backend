@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -9,8 +10,9 @@ import (
 	"github.com/podengo-project/idmsvc-backend/internal/config"
 	"github.com/podengo-project/idmsvc-backend/internal/infrastructure/logger"
 	mock_rbac_impl "github.com/podengo-project/idmsvc-backend/internal/infrastructure/service/impl/mock/rbac/impl"
-	slog "golang.org/x/exp/slog"
 )
+
+const component = "mock-rbac"
 
 func startSignalHandler(c context.Context) (context.Context, context.CancelFunc) {
 	if c == nil {
@@ -31,7 +33,9 @@ func main() {
 	defer cancel()
 
 	cfg := config.Get()
-	logger.InitLogger(cfg)
+	logger.InitLogger(cfg, component)
+	defer logger.DoneLogger()
+
 	if cfg.Clients.RbacBaseURL == "" {
 		panic("'RbacBaseURL' is empty")
 	}

@@ -7,7 +7,9 @@
 package config
 
 import (
+	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,7 +17,6 @@ import (
 	"github.com/podengo-project/idmsvc-backend/internal/infrastructure/secrets"
 	clowder "github.com/redhatinsights/app-common-go/pkg/api/v1"
 	"github.com/spf13/viper"
-	"golang.org/x/exp/slog"
 	"k8s.io/utils/env"
 )
 
@@ -36,6 +37,16 @@ const (
 	// DefaultEnableRBAC is true
 	DefaultEnableRBAC = true
 
+	// DefaultDatabaseMaxOpenConn is the default for max open database connections
+	DefaultDatabaseMaxOpenConn = 30
+
+	// DefaultIdleTimeout 5 mins by default
+	DefaultIdleTimeout = time.Duration(5 * time.Minute)
+	// DefaultReadTimeout 3 seconds by default
+	DefaultReadTimeout = time.Duration(3 * time.Second)
+	// DefaultWriteTimeout 3 seconds by default
+	DefaultWriteTimeout = time.Duration(3 * time.Second)
+
 	// https://github.com/project-koku/koku/blob/main/koku/api/common/pagination.py
 
 	// PaginationDefaultLimit is the default limit for the pagination
@@ -47,6 +58,17 @@ const (
 	DefaultAcceptXRHFakeIdentity = false
 	// DefaultValidateAPI is true
 	DefaultValidateAPI = true
+
+	// EnvSSLCertDirectory environment variable that provides
+	// the paths for the CA certificates
+	EnvSSLCertDirectory = "SSL_CERT_DIR"
+)
+
+var (
+	// DefaultSizeLimitRequestHeader in bytes. Default 32KB
+	DefaultSizeLimitRequestHeader = (32 * 1024)
+	// DefaultSizeLimitRequestBody in bytes. Default 128KB
+	DefaultSizeLimitRequestBody = (128 * 1024)
 )
 
 type Config struct {
@@ -73,7 +95,8 @@ type Database struct {
 	Password string `json:"-"`
 	Name     string
 	// https://stackoverflow.com/questions/54844546/how-to-unmarshal-golang-viper-snake-case-values
-	CACertPath string `mapstructure:"ca_cert_path"`
+	CACertPath   string `mapstructure:"ca_cert_path"`
+	MaxOpenConns int    `mapstructure:"max_open_conns"`
 }
 
 type Cloudwatch struct {
@@ -154,10 +177,17 @@ type Metrics struct {
 // Clients gather all the configuration to properly setup
 // the third party services that idmsvc need to interact with.
 type Clients struct {
-	// InventoryBaseURL is the base endpoint to launch inventory requests.
-	InventoryBaseURL string `mapstructure:"inventory_base_url"`
 	// RbacBaseURL is the base endpoint to launch RBAC requests.
 	RbacBaseURL string `mapstructure:"rbac_base_url"`
+	// PendoBaseURL is the base url to reach out the pendo API.
+	PendoBaseURL string `mapstructure:"pendo_base_url"`
+	// PendoAPIKey indicates the shared key to communicate with the API.
+	PendoAPIKey string `mapstructure:"pendo_api_key" json:"-"`
+	// PendoTrackEventKey indicates the shared key to communicate with the API
+	// for track events.
+	PendoTrackEventKey string `mapstructure:"pendo_track_event_key" json:"-"`
+	// PendoRequestTimeoutSecs indicates the timeout for every request.
+	PendoRequestTimeoutSecs int `mapstructure:"pendo_request_timeout_secs"`
 }
 
 // Application hold specific application settings
@@ -189,6 +219,16 @@ type Application struct {
 	MainSecret string `mapstructure:"secret" validate:"required,base64rawurl" json:"-"`
 	// Flag to enable/disable rbac
 	EnableRBAC bool `mapstructure:"enable_rbac"`
+	// IdleTimeout for the API endpoints.
+	IdleTimeout time.Duration `mapstructure:"idle_timeout" validate:"gte=1ms,lte=5m"`
+	// ReadTimeout for the API endpoints.
+	ReadTimeout time.Duration `mapstructure:"read_timeout" validate:"gte=1ms,lte=10s"`
+	// WriteTimeout for the API endpoints.
+	WriteTimeout time.Duration `mapstructure:"write_timeout" validate:"gte=1ms,lte=10s"`
+	// SizeLimitRequestHeader for the API endpoints.
+	SizeLimitRequestHeader int `mapstructure:"size_limit_request_header"`
+	// SizeLimitRequestBody for the API endpoints.
+	SizeLimitRequestBody int `mapstructure:"size_limit_request_body"`
 }
 
 var config *Config = nil
@@ -215,6 +255,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("database.password", "")
 	v.SetDefault("database.name", "")
 	v.SetDefault("database.ca_cert_path", "")
+	v.SetDefault("database.max_open_conns", DefaultDatabaseMaxOpenConn)
 
 	// Kafka
 	addEventConfigDefaults(v)
@@ -234,7 +275,11 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("logging.cloudwatch.session", "")
 
 	// Clients
-	v.SetDefault("clients.host_inventory_base_url", "http://localhost:8010/api/inventory/v1")
+	v.SetDefault("clients.rbac_base_url", "")
+	v.SetDefault("clients.pendo_base_url", "")
+	v.SetDefault("clients.pendo_api_key", "")
+	v.SetDefault("clients.pendo_track_event_key", "")
+	v.SetDefault("clients.pendo_request_timeout_secs", 0)
 
 	// Application specific
 
@@ -251,6 +296,13 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("app.url_path_prefix", DefaultPathPrefix)
 	v.SetDefault("app.secret", "")
 	v.SetDefault("app.debug", false)
+
+	// Timeouts and limits
+	v.SetDefault("app.idle_timeout", DefaultIdleTimeout)
+	v.SetDefault("app.read_timeout", DefaultReadTimeout)
+	v.SetDefault("app.write_timeout", DefaultWriteTimeout)
+	v.SetDefault("app.size_limit_request_header", DefaultSizeLimitRequestHeader)
+	v.SetDefault("app.size_limit_request_body", DefaultSizeLimitRequestBody)
 }
 
 func setClowderConfiguration(v *viper.Viper, clowderConfig *clowder.AppConfig) {
@@ -300,6 +352,129 @@ func setClowderConfiguration(v *viper.Viper, clowderConfig *clowder.AppConfig) {
 	// Metrics configuration
 	v.Set("metrics.path", clowderConfig.MetricsPath)
 	v.Set("metrics.port", clowderConfig.MetricsPort)
+
+	// Override client base url configuration from clowder when available
+	updateServiceBasePath("rbac", "v1", v, clowderConfig)
+}
+
+// guardUpdateServiceBasePath raise a panic when some of the arguments for
+// updateServiceBasePath is not provided.
+func guardUpdateServiceBasePath(serviceName, version string, target *viper.Viper, clowderConfig *clowder.AppConfig) {
+	if serviceName == "" {
+		panic("'serviceName' is an empty string")
+	}
+	if version == "" {
+		panic("'version' is an empty string")
+	}
+	if target == nil {
+		panic("'target' is nil")
+	}
+	if clowderConfig == nil {
+		panic("'clowderConfig' is nil")
+	}
+}
+
+// updateServiceBasePath overrides the client base url when an endpoint is
+// found for the serviceName, then try to build the base url, and if success
+// overrides the base url with the value from clowder configuration.
+// serviceName is the service we want to update the endpoint (it should exists
+// in the dependencies field of clowderApp).
+// target is the viper instance where the new base url calculated will be written
+// if the endpoint exists in the configuration.
+// clowderConfig represent the configuration injected for clowder which is the
+// source of information to update the base url.
+func updateServiceBasePath(serviceName, version string, target *viper.Viper, clowderConfig *clowder.AppConfig) {
+	guardUpdateServiceBasePath(serviceName, version, target, clowderConfig)
+	paramPath := "clients." + serviceName + "_base_url"
+	if serviceEndpoint := getEndpoint(serviceName, clowderConfig); serviceEndpoint != nil {
+		if serviceBaseURLString := buildClientBaseURL(serviceEndpoint, version); serviceBaseURLString != "" {
+			slog.Debug("override base url for '" + serviceName + "' service to '" + serviceBaseURLString + "' from clowder endpoints")
+			target.Set(paramPath, serviceBaseURLString)
+			return
+		}
+	}
+	slog.Debug("base url for '" + serviceName + "' service to '" + target.GetString(paramPath) + "'")
+}
+
+// getEndpoint search for the serviceName in the slice of Endpoints.
+// Return nil when not found, else the reference to the clowder.DependencyEndpoint
+// which match the serviceName criteria.
+func getEndpoint(serviceName string, clowderConfig *clowder.AppConfig) *clowder.DependencyEndpoint {
+	for _, ep := range clowderConfig.Endpoints {
+		if ep.App == serviceName {
+			return &ep
+		}
+	}
+	return nil
+}
+
+// buildClientBaseURL construct a string to be used as base url for the service
+// represented by serviceEndpoint and the specific version.
+// serviceEndpoint is a structure retrieved from clowder.AppConfig.Endpoints
+// that match with the 3rd party service that this one depends on. See getEndpoint
+// version is the string for the 3rd party service api version to use; it adds the final
+// suffix to the returned base URL
+// Return the base
+func buildClientBaseURL(serviceEndpoint *clowder.DependencyEndpoint, version string) string {
+	// No checks on arguments as it is expected to be called from higher level where
+	// the checks have been actually made.
+
+	serviceBaseURLString := buildClientBaseURLSchemaHostPort(serviceEndpoint)
+	if serviceBaseURLString == "" {
+		return ""
+	}
+
+	serviceBaseURLPath := buildClientBaseURLPath(serviceEndpoint, version)
+	if serviceBaseURLPath == "" {
+		return ""
+	}
+
+	return serviceBaseURLString + serviceBaseURLPath
+}
+
+// buildClientBaseURLSchemaHostPort build the schema, hostname and port
+// to reach out for the given serviceEndpoint. If TLS port is defined,
+// then the schema 'https' and the referenced port are used; if no TLS
+// port is indicated 'http' port and the no TLS port are used.
+// Return the first base url part '[http|https]://{hostname}:[TlsPort|Port]
+func buildClientBaseURLSchemaHostPort(serviceEndpoint *clowder.DependencyEndpoint) string {
+	// Add schema, hostname and port
+	if hasEndpointTLSPort(serviceEndpoint) {
+		return "https://" + serviceEndpoint.Hostname +
+			":" + strconv.Itoa(*serviceEndpoint.TlsPort)
+	} else if hasEndpointPort(serviceEndpoint) {
+		return "http://" + serviceEndpoint.Hostname +
+			":" + strconv.Itoa(serviceEndpoint.Port)
+	}
+	slog.Warn("No Port nor TLSPort found for the service endpoint",
+		slog.String("service", serviceEndpoint.App))
+	return ""
+}
+
+// buildClientBaseURLPath build the second part 'api path + version'
+// If ApiPaths has some item, the first item is used, else if the deprecated
+// ApiPath is set, it is used, else return ""
+func buildClientBaseURLPath(serviceEndpoint *clowder.DependencyEndpoint, version string) string {
+	if len(serviceEndpoint.ApiPaths) > 0 {
+		// Use the first path in the slice
+		return strings.TrimSuffix(serviceEndpoint.ApiPaths[0], "/") +
+			"/" + version
+	}
+	return ""
+}
+
+// hasEndpointTLSPort return if the DependencyEndpoint has a valid TlsPort field
+// that can be used.
+// Return true if TlsPort can be used, else false.
+func hasEndpointTLSPort(serviceEndpoint *clowder.DependencyEndpoint) bool {
+	return serviceEndpoint != nil && serviceEndpoint.TlsPort != nil && *serviceEndpoint.TlsPort > 0
+}
+
+// hasEndpointPort return if the DependencyEndpoint has a valid Port field
+// that can be used.
+// Return true if Port can be used, else false.
+func hasEndpointPort(serviceEndpoint *clowder.DependencyEndpoint) bool {
+	return serviceEndpoint != nil && serviceEndpoint.Port > 0
 }
 
 func Load(cfg *Config) *viper.Viper {
@@ -318,7 +493,10 @@ func Load(cfg *Config) *viper.Viper {
 
 	setDefaults(v)
 	if clowder.IsClowderEnabled() {
+		slog.Debug("clowder is enabled")
 		setClowderConfiguration(v, clowder.LoadedConfig)
+	} else {
+		slog.Debug("clowder not enabled")
 	}
 
 	if err = v.ReadInConfig(); err != nil {
@@ -329,6 +507,75 @@ func Load(cfg *Config) *viper.Viper {
 	}
 
 	return v
+}
+
+// Log logs the configuration
+func (c *Config) Log(logger *slog.Logger) {
+	logger.Info(
+		"Configuration",
+		slog.Group("Web",
+			slog.Int("Port", int(c.Web.Port)),
+		),
+		slog.Group("Database",
+			slog.String("Host", c.Database.Host),
+			slog.Int("Port", c.Database.Port),
+			slog.String("User", c.Database.User),
+			slog.String("Password", obfuscateSecret(c.Database.Password)),
+			slog.String("Name", c.Database.Name),
+			slog.String("CACertPath", c.Database.CACertPath),
+			slog.Int("MaxOpenConns", c.Database.MaxOpenConns),
+		),
+		slog.Group("Logging",
+			slog.String("Level", c.Logging.Level),
+			slog.Bool("Console", c.Logging.Console),
+			slog.Bool("Location", c.Logging.Location),
+			slog.String("Type", c.Logging.Type),
+			slog.Group("Cloudwatch",
+				slog.String("Region", c.Logging.Cloudwatch.Region),
+				slog.String("Key", c.Logging.Cloudwatch.Key),
+				slog.String("Secret", obfuscateSecret(c.Logging.Cloudwatch.Secret)),
+				slog.String("Session", c.Logging.Cloudwatch.Session),
+				slog.String("Group", c.Logging.Cloudwatch.Group),
+				slog.String("Stream", c.Logging.Cloudwatch.Stream),
+			),
+		),
+		slog.Group("Metrics",
+			slog.String("Path", c.Metrics.Path),
+			slog.Int("Port", c.Metrics.Port),
+		),
+		slog.Group("Clients",
+			slog.String("RbacBaseURL", c.Clients.RbacBaseURL),
+			slog.String("PendoBaseURL", c.Clients.PendoBaseURL),
+			slog.String("PendoAPIKey", obfuscateSecret(c.Clients.PendoAPIKey)),
+			slog.String("PendoTrackEventKey", obfuscateSecret(c.Clients.PendoTrackEventKey)),
+			slog.Int("PendoRequestTimeoutSecs", c.Clients.PendoRequestTimeoutSecs),
+		),
+		slog.Group("Application",
+			slog.String("Name", c.Application.Name),
+			slog.String("PathPrefix", c.Application.PathPrefix),
+			slog.Int("TokenExpirationTimeSeconds", c.Application.TokenExpirationTimeSeconds),
+			slog.Duration("HostconfJwkValidity", c.Application.HostconfJwkValidity),
+			slog.Duration("HostconfJwkRenewalThreshold", c.Application.HostconfJwkRenewalThreshold),
+			slog.Int("PaginationDefaultLimit", c.Application.PaginationDefaultLimit),
+			slog.Int("PaginationMaxLimit", c.Application.PaginationMaxLimit),
+			slog.Bool("AcceptXRHFakeIdentity", c.Application.AcceptXRHFakeIdentity),
+			slog.Bool("ValidateAPI", c.Application.ValidateAPI),
+			slog.String("MainSecret", obfuscateSecret(c.Application.MainSecret)),
+			slog.Bool("EnableRBAC", c.Application.EnableRBAC),
+			slog.Duration("IdleTimeout", c.Application.IdleTimeout),
+			slog.Duration("ReadTimeout", c.Application.ReadTimeout),
+			slog.Duration("WriteTimeout", c.Application.WriteTimeout),
+			slog.Int("SizeLimitRequestHeader", c.Application.SizeLimitRequestHeader),
+			slog.Int("SizeLimitRequestBody", c.Application.SizeLimitRequestBody),
+		),
+	)
+}
+
+func obfuscateSecret(value string) string {
+	if value == "" {
+		return ""
+	}
+	return "***"
 }
 
 func reportError(err error) {
@@ -446,4 +693,60 @@ func readEnv(key string, def string) string {
 		value = def
 	}
 	return value
+}
+
+// initSSLCertDir update SSL_CERT_DIR to add TLSCAPath if not found
+// in the list of directories.
+// clowderConfig
+func initSSLCertDir(clowderConfig *clowder.AppConfig) {
+	envSSLCertDir := os.Getenv(EnvSSLCertDirectory)
+	if hasTLSCAPath(clowderConfig) {
+		if !checkPathInList(*clowderConfig.TlsCAPath, envSSLCertDir) {
+			if envSSLCertDir == "" {
+				envSSLCertDir = *clowderConfig.TlsCAPath
+			} else {
+				envSSLCertDir = envSSLCertDir + ":" + *clowderConfig.TlsCAPath
+			}
+			if err := os.Setenv(EnvSSLCertDirectory, envSSLCertDir); err != nil {
+				panic(err.Error())
+			}
+			slog.Info(EnvSSLCertDirectory + " was updated")
+			return
+		}
+	}
+	slog.Info(EnvSSLCertDirectory + " not updated")
+}
+
+// hasTLSCAPath check the condition when TlsCAPath has
+// some content to use.
+func hasTLSCAPath(clowderConfig *clowder.AppConfig) bool {
+	return clowderConfig != nil && clowderConfig.TlsCAPath != nil && *clowderConfig.TlsCAPath != ""
+}
+
+func checkPathInList(path, pathList string) bool {
+	if path == "" {
+		// Nothing to check
+		return true
+	}
+	path = strings.TrimSuffix(path, "/")
+	pathListItems := strings.Split(pathList, ":")
+	for _, item := range pathListItems {
+		if strings.TrimSuffix(item, "/") == path {
+			return true
+		}
+	}
+	return false
+}
+
+//nolint:all
+func init() {
+	// NOTE
+	//
+	// Linter disabled to allow this exception
+	// I do not recommend the leverage of func init
+	// because provide "black magic" that could evoke
+	// not expected behaviors difficult to debug. Be
+	// aware their execution happens before the
+	// first line of the `main` function is reached out.
+	initSSLCertDir(clowder.LoadedConfig)
 }

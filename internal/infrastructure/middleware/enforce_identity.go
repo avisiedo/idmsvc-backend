@@ -1,15 +1,15 @@
 package middleware
 
 import (
-	"encoding/base64"
-	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/labstack/echo/v4"
 	echo_middleware "github.com/labstack/echo/v4/middleware"
 	"github.com/podengo-project/idmsvc-backend/internal/api/header"
+	app_context "github.com/podengo-project/idmsvc-backend/internal/infrastructure/context"
 	identity "github.com/redhatinsights/platform-go-middlewares/v2/identity"
-	slog "golang.org/x/exp/slog"
 )
 
 // FIXME Refactor to use the signature: func(c echo.Context) Error
@@ -42,7 +42,7 @@ type IdentityConfig struct {
 // Return nil if the enforce is passed, else details about the
 // enforce process.
 func EnforceUserPredicate(data *identity.XRHID) error {
-	// See: https://github.com/coderbydesign/identity-schemas/blob/add-validator/3scale/identities/basic.json
+	// See: https://github.com/RedHatInsights/identity-schemas/blob/main/3scale/identities/jwt.json
 	if data == nil {
 		return fmt.Errorf("'data' cannot be nil")
 	}
@@ -67,12 +67,15 @@ func EnforceUserPredicate(data *identity.XRHID) error {
 // Return nil if the enforce is passed, else details about the
 // enforce process.
 func EnforceSystemPredicate(data *identity.XRHID) error {
-	// See: https://github.com/coderbydesign/identity-schemas/blob/add-validator/3scale/identities/cert.json
+	// See: https://github.com/RedHatInsights/identity-schemas/blob/main/3scale/identities/cert.json
 	if data == nil {
 		return fmt.Errorf("'data' cannot be nil")
 	}
 	if data.Identity.Type != "System" {
 		return fmt.Errorf("'Identity.Type' must be 'System'")
+	}
+	if data.Identity.AuthType != "cert-auth" {
+		return fmt.Errorf("'Identity.AuthType' is not 'cert-auth'")
 	}
 	if data.Identity.System == nil {
 		return fmt.Errorf("'Identity.System' is nil")
@@ -86,21 +89,46 @@ func EnforceSystemPredicate(data *identity.XRHID) error {
 	return nil
 }
 
+// EnforceServiceAccountPredicate is a predicate that check fields for
+// ServiceAccount identities.
+// Return nil if the enforce is passed, else details about the
+// enforce process.
+func EnforceServiceAccountPredicate(data *identity.XRHID) error {
+	// See: https://github.com/RedHatInsights/identity-schemas/blob/main/3scale/identities/service-account.json
+	if data == nil {
+		return fmt.Errorf("'data' cannot be nil")
+	}
+	if data.Identity.Type != "ServiceAccount" {
+		return fmt.Errorf("'Identity.Type' must be 'ServiceAccount'")
+	}
+	if data.Identity.AuthType != "jwt-auth" {
+		return fmt.Errorf("'Identity.AuthType' is not 'jwt-auth'")
+	}
+	if data.Identity.ServiceAccount == nil {
+		return fmt.Errorf("'Identity.ServiceAccount' is nil")
+	}
+	if data.Identity.ServiceAccount.ClientId == "" {
+		return fmt.Errorf("'Identity.ServiceAccount.ClientId' is empty")
+	}
+	if data.Identity.ServiceAccount.Username == "" {
+		return fmt.Errorf("'Identity.ServiceAccount.Username' is empty")
+	}
+	return nil
+}
+
 // NewEnforceOr allow to create new predicates by composing a
 // logical OR with existing predicates.
 func NewEnforceOr(predicates ...IdentityPredicate) IdentityPredicate {
 	return func(data *identity.XRHID) error {
-		var firsterr error
+		var allErrors error
 		for i := range predicates {
 			if err := predicates[i](data); err == nil {
 				return nil
 			} else {
-				if firsterr == nil {
-					firsterr = err
-				}
+				allErrors = errors.Join(allErrors, err)
 			}
 		}
-		return firsterr
+		return allErrors
 	}
 }
 
@@ -119,23 +147,22 @@ func EnforceIdentityWithConfig(config *IdentityConfig) func(echo.HandlerFunc) ec
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			var (
-				xrhid *identity.XRHID
-				err   error
+				err error
+				cc  DomainContextInterface
+				ok  bool
 			)
+			ctx := c.Request().Context()
+			logger := app_context.LogFromCtx(ctx)
 			if config.Skipper != nil && config.Skipper(c) {
-				slog.DebugContext(c.Request().Context(), "Skipping EnforceIdentity middleware")
+				logger.Debug("Skipping EnforceIdentity middleware")
 				return next(c)
 			}
-			cc, ok := c.(DomainContextInterface)
-			if !ok {
-				slog.ErrorContext(c.Request().Context(), "'DomainContextInterface' is expected")
+			if cc, ok = c.(DomainContextInterface); !ok {
+				logger.Error("'DomainContextInterface' is expected")
 				return echo.ErrInternalServerError
 			}
-			xrhidRaw := cc.Request().Header.Get(header.HeaderXRHID)
-			if xrhid, err = decodeXRHID(xrhidRaw); err != nil {
-				slog.ErrorContext(c.Request().Context(), err.Error())
-				return echo.ErrBadRequest
-			}
+
+			xrhid := cc.XRHID()
 
 			// The predicate must return no error, otherwise
 			// the request is not authorised.
@@ -143,32 +170,71 @@ func EnforceIdentityWithConfig(config *IdentityConfig) func(echo.HandlerFunc) ec
 				key := entry.Name
 				predicate := entry.Predicate
 				if err = predicate(xrhid); err != nil {
-					slog.ErrorContext(
-						c.Request().Context(),
-						fmt.Sprintf("'%s' IdentityPredicate failed: %s", key, err.Error()),
-					)
+					logger.Error(fmt.Sprintf("'%s' IdentityPredicate failed: %s", key, err.Error()))
 					return echo.ErrUnauthorized
 				}
 			}
+
+			return next(c)
+		}
+	}
+}
+
+type ParseXRHIDMiddlewareConfig struct {
+	// Skipper function to skip for some request if necessary
+	Skipper echo_middleware.Skipper
+}
+
+// Parse the X-RH-Identity header and set it into the request context.
+// This must be called AFTER the "Fake Identity" middleware (if used),
+// but BEFORE the EnforceIdentity middlewares.
+func ParseXRHIDMiddlewareWithConfig(config *ParseXRHIDMiddlewareConfig) func(echo.HandlerFunc) echo.HandlerFunc {
+	if config == nil {
+		panic("'config' is nil")
+	}
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			var (
+				xrhid *identity.XRHID
+				err   error
+				cc    DomainContextInterface
+				ok    bool
+			)
+
+			ctx := c.Request().Context()
+			logger := app_context.LogFromCtx(ctx)
+
+			if config.Skipper != nil && config.Skipper(c) {
+				return next(c)
+			}
+
+			if cc, ok = c.(DomainContextInterface); !ok {
+				logger.Error("'DomainContextInterface' is expected")
+				return echo.ErrInternalServerError
+			}
+
+			xrhidRaw := cc.Request().Header.Get(header.HeaderXRHID)
+			if xrhidRaw == "" {
+				return echo.ErrUnauthorized
+			}
+			if xrhid, err = header.DecodeXRHID(xrhidRaw); err != nil {
+				logger.Error(err.Error())
+				return echo.ErrBadRequest
+			}
+
+			// Aggregate additional information to the logs
+			principal := header.GetPrincipal(xrhid)
+			logger = logger.With(
+				slog.String("org_id", xrhid.Identity.OrgID),
+				slog.String("identity_type", xrhid.Identity.Type),
+				slog.String("identity_principal", principal),
+			)
+			ctx = app_context.CtxWithLog(ctx, logger)
+			c.SetRequest(c.Request().Clone(ctx))
 
 			// Set the unserialized Identity into the request context
 			cc.SetXRHID(xrhid)
 			return next(c)
 		}
 	}
-}
-
-func decodeXRHID(b64XRHID string) (*identity.XRHID, error) {
-	if b64XRHID == "" {
-		return nil, fmt.Errorf("%s not present", header.HeaderXRHID)
-	}
-	stringXRHID, err := base64.StdEncoding.DecodeString(b64XRHID)
-	if err != nil {
-		return nil, err
-	}
-	xrhid := &identity.XRHID{}
-	if err := json.Unmarshal([]byte(stringXRHID), xrhid); err != nil {
-		return nil, err
-	}
-	return xrhid, nil
 }

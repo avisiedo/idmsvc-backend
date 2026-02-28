@@ -62,6 +62,7 @@ func (s *SuiteRegisterDomain) SetupTest() {
 	s.SuiteBase.SetupTest()
 
 	// Get a token for the registration
+	s.As(XRHIDUser)
 	if s.token, err = s.CreateToken(); err != nil {
 		s.FailNow("Error creating a token for registering a rhel-idm domain", "%s", err.Error())
 	}
@@ -72,43 +73,72 @@ func (s *SuiteRegisterDomain) TearDownTest() {
 }
 
 func (s *SuiteRegisterDomain) TestRegisterDomain() {
-	xrhidEncoded := header.EncodeXRHID(&s.SystemXRHID)
 	url := s.DefaultPublicBaseURL() + "/domains"
 	domainName := builder_helper.GenRandDomainName(2)
+
+	updateServerNotPresentRequest := builder_api.
+		NewDomain(domainName).
+		Build()
+
 	bodyRequest := builder_api.
 		NewDomain(domainName).
 		Build()
+	setFirstServerRHSMId(s.T(), bodyRequest, s.systemXRHID)
+	setFirstAsUpdateServer(bodyRequest)
+
+	versionHeader := header.EncodeXRHIDMVersion(
+		header.NewXRHIDMVersion(
+			"v1.0.0",
+			"4.19.0",
+			"redhat-9.3",
+			"9.3",
+		),
+	)
 
 	// Prepare the tests
 	testCases := []TestCase{
 		{
+			Name: "TestRegisterDomainNoUpdateServer",
+			Given: TestCaseGiven{
+				XRHIDProfile: XRHIDSystem,
+				Method:       http.MethodPost,
+				URL:          url,
+				Header: http.Header{
+					header.HeaderXRequestID:              {"test_register"},
+					header.HeaderXRHIDMRegistrationToken: {s.token.DomainToken},
+					header.HeaderXRHIDMVersion:           {versionHeader},
+				},
+				Body: updateServerNotPresentRequest,
+			},
+			Expected: TestCaseExpect{
+				StatusCode: http.StatusBadRequest,
+				BodyFunc: WrapBodyFuncErrorResponse(func(t *testing.T, body *public.ErrorResponse) error {
+					assert.Equal(t, builder_api.NewErrorResponse().
+						Add(*builder_api.NewErrorInfo(http.StatusBadRequest).
+							WithTitle("update server's 'Subscription Manager ID' not found in the authorized list of rhel-idm servers").
+							Build()).
+						Build(), body)
+					return nil
+				}),
+			},
+		},
+		{
 			Name: "TestRegisterDomain rhel-idm",
 			Given: TestCaseGiven{
-				Method: http.MethodPost,
-				URL:    url,
+				XRHIDProfile: XRHIDSystem,
+				Method:       http.MethodPost,
+				URL:          url,
 				Header: http.Header{
-					header.HeaderXRequestID:              {"test_token"},
-					header.HeaderXRHID:                   {xrhidEncoded},
+					header.HeaderXRequestID:              {"test_register"},
 					header.HeaderXRHIDMRegistrationToken: {s.token.DomainToken},
-					header.HeaderXRHIDMVersion: {
-						header.EncodeXRHIDMVersion(
-							header.NewXRHIDMVersion(
-								"v1.0.0",
-								"4.19.0",
-								"redhat-9.3",
-								"9.3",
-							),
-						),
-					},
+					header.HeaderXRHIDMVersion:           {versionHeader},
 				},
 				Body: bodyRequest,
 			},
 			Expected: TestCaseExpect{
 				StatusCode: http.StatusCreated,
 				Header: http.Header{
-					// FIXME Avoid hardcode the key name of the header
-					header.HeaderXRequestID: {"test_token"},
-					header.HeaderXRHID:      nil,
+					header.HeaderXRHID: nil,
 				},
 				BodyFunc: WrapBodyFuncDomainResponse(func(t *testing.T, body *public.Domain) error {
 					require.NotNil(t, body)
@@ -124,10 +154,14 @@ func (s *SuiteRegisterDomain) TestRegisterDomain() {
 					}
 
 					require.NotNil(t, body.Description)
-					assert.Equal(t, "", *body.Description)
+					assert.Equal(t, *bodyRequest.Description, *body.Description)
 
 					require.NotNil(t, body.AutoEnrollmentEnabled)
-					assert.False(t, *body.AutoEnrollmentEnabled)
+					if bodyRequest.AutoEnrollmentEnabled != nil && body.AutoEnrollmentEnabled != nil {
+						assert.Equal(t, *bodyRequest.AutoEnrollmentEnabled, *body.AutoEnrollmentEnabled)
+					} else {
+						assert.False(t, *body.AutoEnrollmentEnabled)
+					}
 
 					// Check rhel-idm
 					if bodyRequest != nil {

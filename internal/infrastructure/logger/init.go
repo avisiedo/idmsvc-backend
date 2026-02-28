@@ -3,6 +3,8 @@ package logger
 import (
 	"context"
 	"fmt"
+	"io"
+	"log/slog"
 	"os"
 	"runtime/debug"
 	"strings"
@@ -13,7 +15,6 @@ import (
 	aws_session "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
 	"github.com/podengo-project/idmsvc-backend/internal/config"
-	"golang.org/x/exp/slog"
 )
 
 // If you want to learn more about slog visit:
@@ -36,6 +37,11 @@ type Clonable interface {
 	Clone() interface{}
 }
 
+var (
+	cloudwatchCloser io.Closer    = nil
+	oldSlog          *slog.Logger = nil
+)
+
 // Early logging setup so we can use slog, this will just log to stderr.
 // This will change once the configuration has been parsed and we setup the
 // logger accordingly.
@@ -44,7 +50,9 @@ func init() {
 	slog.SetDefault(slog.New(h))
 }
 
-func InitLogger(cfg *config.Config) {
+func InitLogger(cfg *config.Config, componentName string) {
+	var ok bool
+
 	if cfg == nil {
 		panic("'cfg' cannot be nil")
 	}
@@ -122,6 +130,9 @@ func InitLogger(cfg *config.Config) {
 			w,
 			&opts,
 		)
+		if cloudwatchCloser, ok = w.(io.Closer); !ok {
+			slog.Warn("cloudwatchCloser is nil; log output could stay un-flushed and be lost")
+		}
 		metaHandler.Add(cloudwatch_handler)
 	} else if cfg.Logging.Console {
 		h := slog.NewTextHandler(
@@ -135,6 +146,11 @@ func InitLogger(cfg *config.Config) {
 			&opts,
 		)
 		metaHandler.Add(h)
+	}
+	if oldSlog == nil {
+		oldSlog = slog.Default()
+	} else {
+		slog.Warn("InitLogger called twice")
 	}
 	slog.SetDefault(slog.New(metaHandler))
 
@@ -158,6 +174,8 @@ func InitLogger(cfg *config.Config) {
 		globalLevel.Set(LevelWarn)
 	}
 
+	slog.SetDefault(slog.Default().With(slog.String("component", componentName)))
+	cfg.Log(slog.Default())
 	slog.Log(
 		context.Background(),
 		LevelNotice,
@@ -201,4 +219,15 @@ func LogBuildInfo(msg string) {
 		slog.String("CommitTime", commitTime),
 		slog.Bool("Dirty", dirty),
 	)
+}
+
+// DoneLogger should be called before exiting any process that
+// invokes InitLogger.  e.g. via `defer logger.DoneLogger()`.
+func DoneLogger() {
+	slog.SetDefault(oldSlog)
+	if cloudwatchCloser != nil {
+		if err := cloudwatchCloser.Close(); err != nil {
+			slog.Error(err.Error())
+		}
+	}
 }

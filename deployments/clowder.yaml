@@ -27,8 +27,8 @@ objects:
           # than the ephemeral environment. When both values exist, replicas has
           # priority over minReplicas
           # https://github.com/RedHatInsights/clowder/commit/aaf5643a7b1e769b53768e7c1a446d348d0a71f4
-          minReplicas: 3  # DEPRECATED
-          replicas: 3
+          minReplicas: ${{SERVICE_REPLICAS}}  # DEPRECATED
+          replicas: ${{SERVICE_REPLICAS}}
 
           # https://consoledot.pages.redhat.com/clowder/dev/providers/web.html
           webServices:
@@ -102,6 +102,32 @@ objects:
                     name: app-secret
               - name: CLIENTS_RBAC_BASE_URL
                 value: "${CLIENTS_RBAC_BASE_URL}"
+              - name: CLIENTS_PENDO_BASE_URL
+                value: "${CLIENTS_PENDO_BASE_URL}"
+              - name: CLIENTS_PENDO_API_KEY
+                valueFrom:
+                  secretKeyRef:
+                    key: integration-key
+                    name: pendo-creds
+                    optional: true
+              - name: CLIENTS_PENDO_TRACK_EVENT_KEY
+                valueFrom:
+                  secretKeyRef:
+                    key: track-event-secret
+                    name: pendo-creds
+                    optional: true
+              - name: DATABASE_MAX_OPEN_CONNS
+                value: "${DATABASE_MAX_OPEN_CONNS}"
+              - name: APP_IDLE_TIMEOUT
+                value: "${APP_IDLE_TIMEOUT}"
+              - name: APP_READ_TIMEOUT
+                value: "${APP_READ_TIMEOUT}"
+              - name: APP_WRITE_TIMEOUT
+                value: "${APP_WRITE_TIMEOUT}"
+              - name: APP_SIZE_LIMIT_REQUEST_HEADER
+                value: "${APP_SIZE_LIMIT_REQUEST_HEADER}"
+              - name: APP_SIZE_LIMIT_REQUEST_BODY
+                value: "${APP_SIZE_LIMIT_REQUEST_BODY}"
             resources:
               limits:
                 cpu: ${CPU_LIMIT}
@@ -154,6 +180,8 @@ objects:
                     name: app-secret
               - name: CLIENTS_RBAC_BASE_URL
                 value: "${CLIENTS_RBAC_BASE_URL}"
+              - name: DATABASE_MAX_OPEN_CONNS
+                value: "${DATABASE_MAX_OPEN_CONNS}"
             resources:
               limits:
                 cpu: ${CPU_LIMIT}
@@ -176,9 +204,13 @@ parameters:
       The internal application name that is used to
       compose the API path for its routes.
   - name: IMAGE
-    value: quay.io/cloudservices/idmsvc-backend
+    value: quay.io/redhat-services-prod/insights-management-tenant/insights-idmsvc/idmsvc-backend
   - name: IMAGE_TAG
     required: true
+  - name: SERVICE_REPLICAS
+    required: true
+    description: |
+      Minimum number of replicas to deploy for the API service component
   - name: CPU_LIMIT
     value: 500m
     description: |
@@ -196,7 +228,7 @@ parameters:
     description: |
       The resource request for the memory per pod
   - name: LOGGING_LEVEL
-    value: warn
+    value: info
     description: |
       The log level for the deployment; valid values
       are "info", "warn", "error", "debug", "trace".
@@ -231,12 +263,51 @@ parameters:
     value: "false"
     description: |
       A flag to suspend execution of 'db-tool jwk refresh' cron job.
-  # TODO HMS-3528 Set "true" or remove the feature flag
   - name: APP_ENABLE_RBAC
-    value: "false"
+    value: "true"
     description: |
       It allows to enable / disable RBAC middleware.
   - name: CLIENTS_RBAC_BASE_URL
-    required: true
+    required: false
     description: |
       Point out to the rbac service base url
+  - name: CLIENTS_PENDO_BASE_URL
+    value: "https://app.pendo.io"
+    required: false
+    description: |
+      Point out to the pendo service base url
+  - name: DATABASE_MAX_OPEN_CONNS
+    required: false
+    description: |
+      The maximum number of open connections to the database
+  - name: APP_IDLE_TIMEOUT
+    value: "5m"
+    required: false
+    description: |
+      The idle timeout for the public API endpoints. Default 5m.
+  - name: APP_READ_TIMEOUT
+    value: "3s"
+    required: false
+    description: |
+      The read timeout for the public API endpoints, which
+      is the maximum time to read the request headers and
+      body. Default 3s.
+  - name: APP_WRITE_TIMEOUT
+    value: "3s"
+    required: false
+    description: |
+      The write timeout for the public API endpoints, which
+      is the maximum time to write the response headers and
+      body for a given request. Default 3s.
+  - name: APP_SIZE_LIMIT_REQUEST_HEADER
+    value: "32768"
+    required: false
+    description: |
+      The maximum size for the request headers that receives
+      the public API endpoints. Default 32KB.
+  - name: APP_SIZE_LIMIT_REQUEST_BODY
+    value: "131072"
+    required: false
+    description: |
+      The maximum size for the request body that receives the
+      public API endpoints. Default 128KB.

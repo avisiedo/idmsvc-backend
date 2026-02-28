@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/confluentinc/confluent-kafka-go/kafka"
-	"github.com/openlyinc/pointy"
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/podengo-project/idmsvc-backend/internal/api/event"
 	"github.com/podengo-project/idmsvc-backend/internal/config"
 	"github.com/podengo-project/idmsvc-backend/internal/infrastructure/event/message"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.openly.dev/pointy"
 )
 
 func TestNewConsumer(t *testing.T) {
