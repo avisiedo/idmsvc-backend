@@ -16,7 +16,7 @@ require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/RedHatInsights/cloudwatch v0.0.0-20210111105023-1df2bdfe3291
 	github.com/aws/aws-sdk-go v1.55.7
-	github.com/confluentinc/confluent-kafka-go v1.9.2
+	// github.com/confluentinc/confluent-kafka-go/v2/kafka v2.13.0
 	github.com/getkin/kin-openapi v0.131.0
 	github.com/go-playground/validator/v10 v10.27.0
 	github.com/golang-migrate/migrate/v4 v4.18.3
@@ -42,6 +42,8 @@ require (
 	gorm.io/gorm v1.30.0
 	k8s.io/utils v0.0.0-20250604170112-4c0f3b243397
 )
+
+require github.com/confluentinc/confluent-kafka-go/v2 v2.13.0
 
 require (
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
@@ -81,6 +83,7 @@ require (
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/moby/sys/userns v0.1.0 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/oasdiff/yaml v0.0.0-20250309154309-f31be36b4037 // indirect
