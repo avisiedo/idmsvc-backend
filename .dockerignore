@@ -19,17 +19,9 @@
 !/api
 !/api/**
 
-# Conainer build definitions
-#!/build
-#!/build/**/*
-
 # Grafana dashboard
 !/dashboards
 !/dashboards/**/*
-
-# Deployment resources
-#!/deployments
-#!/deployments/**/*
 
 # Scripts
 !/scripts
