@@ -43,4 +43,6 @@
 # Configs
 !/configs
 !/configs/**/*
+/configs/config.yaml
+/configs/prometheus.yaml
 
