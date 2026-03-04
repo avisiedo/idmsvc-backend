@@ -8,6 +8,8 @@ LABEL idmsvc-backend=builder
 # https://developers.redhat.com/articles/2022/05/31/your-go-application-fips-compliant
 ENV OPENSSL_FORCE_FIPS_MODE=1
 WORKDIR /go/src/app
+COPY go.mod go.sum .
+RUN go mod download
 COPY . .
 USER 0
 RUN make bin/mock-rbac
