@@ -200,7 +200,7 @@ func (m *mockRbac) Start() error {
 }
 
 func (m *mockRbac) Stop() error {
-	slog.Info("mock rback service stopping")
+	slog.Info("mock rbac service stopping")
 	defer m.waitGroup.Wait()
 	m.cancelFunc()
 	return nil
