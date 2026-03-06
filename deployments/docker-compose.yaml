@@ -128,19 +128,19 @@ services:
   #   environment: {}
 
   # 'make test' will fail with mock-rbac running
-  mock-rbac:
-    image: "${MOCK_RBAC_CONTAINER}"
-    build:
-      dockerfile: build/mock-rbac/Dockerfile
-      context: ../
-    environment:
-      CLIENTS_RBAC_BASE_URL: http://0.0.0.0:8020/api/rbac/v1
-      APP_CLIENTS_RBAC_PROFILE: ${APP_CLIENTS_RBAC_PROFILE:-domain-admin}
-      CONFIG_PATH: /opt/etc
-    ports:
-      - 8020:8020
-    volumes:
-      - ../configs/config.yaml:/opt/etc/config.yaml:z
+  # mock-rbac:
+  #   image: "${MOCK_RBAC_CONTAINER}"
+  #   build:
+  #     dockerfile: build/mock-rbac/Dockerfile
+  #     context: ../
+  #   environment:
+  #     CLIENTS_RBAC_BASE_URL: http://0.0.0.0:8020/api/rbac/v1
+  #     APP_CLIENTS_RBAC_PROFILE: ${APP_CLIENTS_RBAC_PROFILE:-domain-admin}
+  #     CONFIG_PATH: /opt/etc
+  #   ports:
+  #     - 8020:8020
+  #   volumes:
+  #     - ../configs/config.yaml:/opt/etc/config.yaml:z
 
 volumes:
   database:
