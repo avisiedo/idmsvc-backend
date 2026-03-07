@@ -103,22 +103,22 @@ test: ## Run unit tests, smoke tests and integration tests
 
 .PHONY: test-unit
 test-unit: ## Run unit tests
-	CLIENTS_RBAC_BASE_URL="http://localhost:8021/api/rbac/v1" \
+	CLIENTS_RBAC_BASE_URL="http://localhost:8051/api/rbac/v1" \
 	go test -parallel 4 -coverprofile="coverage.out" -covermode count $(MOD_VENDOR) $(shell go list ./... | grep $(TEST_GREP_FILTER) )
 
 .PHONY: test-ci
 test-ci: ## Run tests for ci
-	CLIENTS_RBAC_BASE_URL="http://localhost:8021/api/rbac/v1" \
+	CLIENTS_RBAC_BASE_URL="http://localhost:8051/api/rbac/v1" \
 	go test $(MOD_VENDOR) ./...
 
 .PHONY: test-smoke
 test-smoke:  ## Run smoke tests
-	CLIENTS_RBAC_BASE_URL="http://localhost:8021/api/rbac/v1" \
+	CLIENTS_RBAC_BASE_URL="http://localhost:8051/api/rbac/v1" \
 	go test -parallel 1 ./internal/test/smoke/... -test.failfast -test.v
 
 .PHONY: test-perf
 test-perf:  ## Run smoke tests
-	CLIENTS_RBAC_BASE_URL="http://localhost:8021/api/rbac/v1" \
+	CLIENTS_RBAC_BASE_URL="http://localhost:8051/api/rbac/v1" \
 	go test -parallel 1 ./internal/test/perf/... -test.failfast -test.v -timeout 30m
 
 # Add dependencies from binaries to all the the sources
