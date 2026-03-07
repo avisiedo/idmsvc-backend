@@ -3,10 +3,10 @@
 # manager (podman or docker).
 ##
 
-ifneq (,$(shell which podman -v 2>/dev/null))
+ifneq (,$(shell command -v podman -v 2>/dev/null))
 CONTAINER_ENGINE ?= podman
 else
-ifneq (,$(shell which docker -v 2>/dev/null))
+ifneq (,$(shell command -v docker -v 2>/dev/null))
 CONTAINER_ENGINE ?= docker
 else
 CONTAINER_ENGINE ?= false
@@ -34,7 +34,7 @@ CONTAINER_IMAGE ?= $(CONTAINER_IMAGE_BASE):$(CONTAINER_IMAGE_TAG)
 # CONTAINER_RUN_ARGS
 
 # if go is available, mount user's Go module and build cache to speed up dev builds.
-ifneq (,$(shell which go 2>&1 >/dev/null))
+ifneq (,$(shell command -v go 2>&1 >/dev/null))
 USE_GO_CACHE = true
 CONTAINER_BUILD_OPTS += -v "$(shell go env GOCACHE):/opt/app-root/src/.cache/go-build$(CONTAINER_VOL_SUFFIX)"
 CONTAINER_BUILD_OPTS += -v "$(shell go env GOMODCACHE):/opt/app-root/src/go/pkg/mod$(CONTAINER_VOL_SUFFIX)"
