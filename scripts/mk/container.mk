@@ -56,8 +56,6 @@ container-build:  ## Build image CONTAINER_IMAGE from CONTAINER_FILE using the C
 	  -t "$(CONTAINER_IMAGE)" \
 	  $(CONTAINER_CONTEXT_DIR) \
 	  -f "$(CONTAINER_FILE)"
-	@# prune builder container
-	$(CONTAINER_ENGINE) image prune --filter label=idmsvc-backend=builder --force
 
 .PHONY: container-push
 container-push:  ## Push image to remote registry
