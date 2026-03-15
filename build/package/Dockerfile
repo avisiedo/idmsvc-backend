@@ -9,7 +9,7 @@ LABEL idmsvc-backend=builder
 ENV OPENSSL_FORCE_FIPS_MODE=1
 WORKDIR /go/src/app
 COPY go.mod go.sum .
-RUN make get-deps
+RUN go mod download
 USER 0
 COPY . .
 RUN make build
