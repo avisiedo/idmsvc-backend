@@ -7,7 +7,6 @@ import (
 	mock "github.com/stretchr/testify/mock"
 
 	public "github.com/podengo-project/idmsvc-backend/internal/api/public"
-
 	repository "github.com/podengo-project/idmsvc-backend/internal/interface/repository"
 )
 

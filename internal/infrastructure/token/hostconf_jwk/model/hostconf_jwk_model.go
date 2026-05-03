@@ -6,20 +6,12 @@ import (
 	"time"
 
 	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/podengo-project/idmsvc-backend/internal/domain/model"
 	"github.com/podengo-project/idmsvc-backend/internal/infrastructure/secrets"
 	"github.com/podengo-project/idmsvc-backend/internal/infrastructure/token/hostconf_jwk"
-	"gorm.io/gorm"
 )
 
-// HostconfJwks hold public and private JWKs
-type HostconfJwk struct {
-	gorm.Model
-	KeyId        string    // JWK KID
-	ExpiresAt    time.Time // Expiration time stamp
-	PublicJwk    string    // Public JWK as serialized JSON
-	EncryptionId string    // id of the encryption key
-	EncryptedJwk []byte    // Encrypted private key, nil if key is revoked
-}
+
 
 var (
 	ErrExpiredKey          = errors.New("expired key")
@@ -28,8 +20,34 @@ var (
 	ErrKeyDecryptionFailed = errors.New("decryption failed")
 )
 
+type HostconfJwk struct{
+	model.HostconfJwk
+}
+
+type HostconfJwkService interface {
+	// Get public key state (invalid, expired, revoked, valid)
+	// A public key can be valid although its private key cannot be decrypted
+	// by current secret.
+	GetPublicKeyState() (hostconf_jwk.KeyState, error)
+
+	// Get public jwk.Key from entry
+	// Fails if key is invalid, expired, or revoked.
+	GetPublicJWK() (jwk.Key, hostconf_jwk.KeyState, error)
+
+	// Get private key state (invalid, expired, revoked, mismatch, valid)
+	GetPrivateKeyState(secrets.AppSecrets) (hostconf_jwk.KeyState, error)
+
+	// Decrypt and return private jwk.Key from entry
+	// Fails if key is invalid, expired, revoked, or not encrypted with secret.
+	GetPrivateJWK(secrets.AppSecrets) (jwk.Key, hostconf_jwk.KeyState, error)
+
+	// Revoke sets the encrypted private key to nil and marks the hostconf JWK
+	// as revoked.
+	Revoke() (error)
+}
+
 // Create a new Hostconf JWK entry with public and encrypted private JWK
-func NewHostconfJwk(secrets secrets.AppSecrets, expiresAt time.Time) (hc *HostconfJwk, err error) {
+func NewHostconfJwk(secrets secrets.AppSecrets, expiresAt time.Time) (hc HostconfJwkService, err error) {
 	var (
 		encryptedJwk []byte
 		pubkey       jwk.Key
@@ -54,11 +72,13 @@ func NewHostconfJwk(secrets secrets.AppSecrets, expiresAt time.Time) (hc *Hostco
 	}
 
 	hc = &HostconfJwk{
-		KeyId:        pubkey.KeyID(),
-		ExpiresAt:    expiresAt,
-		PublicJwk:    string(pubkeybytes),
-		EncryptedJwk: encryptedJwk,
-		EncryptionId: secrets.HostconfEncryptionId,
+		HostconfJwk: model.HostconfJwk {
+			KeyId:        pubkey.KeyID(),
+			ExpiresAt:    expiresAt,
+			PublicJwk:    string(pubkeybytes),
+			EncryptedJwk: encryptedJwk,
+			EncryptionId: secrets.HostconfEncryptionId,
+		},
 	}
 
 	return hc, nil

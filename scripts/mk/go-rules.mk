@@ -89,13 +89,15 @@ vendor: ## Generate vendor/ directory populated with the dependencies
 # generated.
 # Exclude /vendor in case it exists
 # Exclude /internal/interface directories because only contain interfaces
+TGF_PREFIX := github.com/podengo-project/idmsvc-backend
 TEST_GREP_FILTER := -v \
-  -e /vendor/ \
-  -e /internal/test \
-  -e /internal/interface/ \
-  -e /internal/api/metrics \
-  -e /internal/api/private \
-  -e /internal/api/public
+  -e '$(TGF_PREFIX)/vendor' \
+  -e '$(TGF_PREFIX)/internal/test' \
+  -e '$(TGF_PREFIX)/internal/interface \
+  -e '$(TGF_PREFIX)/internal/api/metrics' \
+  -e '$(TGF_PREFIX)/internal/api/private' \
+  -e '$(TGF_PREFIX)/internal/api/public' \
+  -e '$(TGF_PREFIX)/*.gen.go'
 
 .PHONY: test
 test: ## Run unit tests, smoke tests and integration tests
@@ -236,5 +238,5 @@ generate-deps: $(GODA)
 	$(GODA) graph "github.com/podengo-project/idmsvc-backend/..." | dot -Tsvg -o docs/service-dependencies.svg
 
 .PHONY: coverage
-coverage:  ## Printout coverage
+coverage: test-unit ## Printout coverage
 	go tool cover -func ./coverage.out
