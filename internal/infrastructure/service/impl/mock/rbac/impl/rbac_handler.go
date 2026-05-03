@@ -29,6 +29,9 @@ func (m *mockRbac) accessHandler(c echo.Context) error {
 		linksLast     = "last"
 		linksPrevious = "previous"
 		linksNext     = "next"
+
+		// maxPageSize defines an upper bound for user-controlled pagination limits
+		maxPageSize = 1000
 	)
 	var (
 		page   Page
@@ -80,6 +83,9 @@ func (m *mockRbac) accessHandler(c echo.Context) error {
 
 	if limit <= 0 {
 		limit = 100
+	}
+	if limit > maxPageSize {
+		limit = maxPageSize
 	}
 
 	if offset < 0 {
